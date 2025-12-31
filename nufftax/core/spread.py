@@ -15,7 +15,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
-from .kernel import KernelParams, es_kernel, es_kernel_derivative, es_kernel_with_derivative
+from .kernel import KernelParams, es_kernel, es_kernel_derivative
 
 # ============================================================================
 # Helper functions
@@ -126,13 +126,12 @@ def compute_kernel_weights_derivative_1d(
 
     z = indices.astype(x_scaled.dtype) - x_scaled[:, None]
 
-    # Use fused kernel+derivative for efficiency
-    weights, dweights_dz = es_kernel_with_derivative(z, beta, c)
-
+    weights = es_kernel(z, beta, c)
     # Derivative of kernel w.r.t. z, but we need w.r.t. x
     # Since z = grid_idx - x_scaled, dz/dx = -1 (in grid units)
     # And x_scaled = x * nf / (2*pi), so dx_scaled/dx = nf / (2*pi)
     # Therefore dweights/dx = -dweights/dz * nf / (2*pi)
+    dweights_dz = es_kernel_derivative(z, beta, c)
     # The negative sign accounts for z = idx - x_scaled
     # The scaling nf/(2*pi) converts from grid to original coordinates
     scale = nf / (2.0 * jnp.pi)

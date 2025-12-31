@@ -75,36 +75,6 @@ def es_kernel_derivative(z: jax.Array, beta: float, c: float) -> jax.Array:
     return jnp.where(valid, dphi, 0.0)
 
 
-def es_kernel_with_derivative(z: jax.Array, beta: float, c: float) -> tuple[jax.Array, jax.Array]:
-    """
-    Compute ES kernel and its derivative together (fused for efficiency).
-
-    This avoids redundant computation of sqrt and exp when both
-    kernel value and derivative are needed (e.g., in gradient computation).
-
-    Args:
-        z: Points in kernel support, shape (...)
-        beta: Shape parameter
-        c: Normalization parameter
-
-    Returns:
-        phi: Kernel values, same shape as z
-        dphi: Kernel derivative values, same shape as z
-    """
-    arg = 1.0 - c * z * z
-    valid = arg > 1e-14  # Avoid division by zero
-
-    sqrt_arg = jnp.sqrt(jnp.maximum(arg, 1e-14))
-    phi = jnp.exp(beta * (sqrt_arg - 1.0))
-    dphi = -beta * c * z / sqrt_arg * phi
-
-    # Zero outside support
-    phi = jnp.where(arg >= 0.0, phi, 0.0)
-    dphi = jnp.where(valid, dphi, 0.0)
-
-    return phi, dphi
-
-
 def compute_kernel_params(
     tol: float,
     upsampfac: float = 2.0,
