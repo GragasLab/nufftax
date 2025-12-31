@@ -13,6 +13,7 @@ from .kernel import (
     compute_kernel_params,
     es_kernel,
     es_kernel_derivative,
+    es_kernel_with_derivative,
     kernel_fourier_series,
 )
 from .spread import (
@@ -29,6 +30,7 @@ __all__ = [
     # Kernel functions
     "es_kernel",
     "es_kernel_derivative",
+    "es_kernel_with_derivative",
     "compute_kernel_params",
     "kernel_fourier_series",
     "KernelParams",
