@@ -12,7 +12,7 @@ Reference: FINUFFT finufft_core.cpp
 import jax
 import jax.numpy as jnp
 
-from ..core.deconvolve import deconvolve_shuffle_1d_vectorized
+from ..core.deconvolve import deconvolve_shuffle_1d, deconvolve_shuffle_2d, deconvolve_shuffle_3d
 from ..core.kernel import compute_kernel_params, kernel_fourier_series
 from ..core.spread import spread_1d, spread_2d, spread_3d
 from ..utils.grid import compute_grid_size
@@ -79,7 +79,7 @@ def nufft1d1(
     fw_hat = jnp.fft.fft(fw, axis=-1) if isign > 0 else jnp.fft.ifft(fw, axis=-1) * nf
 
     # Step 4: Deconvolve and shuffle to output mode ordering
-    f = deconvolve_shuffle_1d_vectorized(fw_hat, phihat, n_modes, modeord)
+    f = deconvolve_shuffle_1d(fw_hat, phihat, n_modes, modeord)
 
     if not batched:
         f = f[0]
@@ -150,8 +150,8 @@ def nufft2d1(
     # 2D FFT
     fw_hat = jnp.fft.fft2(fw, axes=(-2, -1)) if isign > 0 else jnp.fft.ifft2(fw, axes=(-2, -1)) * (nf1 * nf2)
 
-    # Deconvolve and shuffle (2D version)
-    f = _deconvolve_shuffle_2d_vectorized(fw_hat, phihat1, phihat2, n_modes1, n_modes2, modeord)
+    # Deconvolve and shuffle
+    f = deconvolve_shuffle_2d(fw_hat, phihat1, phihat2, n_modes1, n_modes2, modeord)
 
     if not batched:
         f = f[0]
@@ -230,167 +230,10 @@ def nufft3d1(
     else:
         fw_hat = jnp.fft.ifftn(fw, axes=(-3, -2, -1)) * (nf1 * nf2 * nf3)
 
-    # Deconvolve and shuffle (3D version)
-    f = _deconvolve_shuffle_3d_vectorized(fw_hat, phihat1, phihat2, phihat3, n_modes1, n_modes2, n_modes3, modeord)
+    # Deconvolve and shuffle
+    f = deconvolve_shuffle_3d(fw_hat, phihat1, phihat2, phihat3, n_modes1, n_modes2, n_modes3, modeord)
 
     if not batched:
         f = f[0]
-
-    return f
-
-
-# ============================================================================
-# Helper functions for 2D and 3D deconvolution (vectorized)
-# ============================================================================
-
-
-def _build_indices_2d(nf1: int, nf2: int, n_modes1: int, n_modes2: int, modeord: int = 0):
-    """Build extraction indices for 2D deconvolution."""
-    k1_min = -n_modes1 // 2
-    k1_max = (n_modes1 - 1) // 2
-    k2_min = -n_modes2 // 2
-    k2_max = (n_modes2 - 1) // 2
-
-    # Indices for x dimension
-    idx_pos_x = jnp.arange(k1_max + 1)
-    idx_neg_x = jnp.arange(nf1 + k1_min, nf1)
-
-    # Indices for y dimension
-    idx_pos_y = jnp.arange(k2_max + 1)
-    idx_neg_y = jnp.arange(nf2 + k2_min, nf2)
-
-    if modeord == 0:
-        # CMCL: negative first, then positive for each dimension
-        idx_x = jnp.concatenate([idx_neg_x, idx_pos_x])
-        idx_y = jnp.concatenate([idx_neg_y, idx_pos_y])
-    else:
-        idx_x = jnp.concatenate([idx_pos_x, idx_neg_x])
-        idx_y = jnp.concatenate([idx_pos_y, idx_neg_y])
-
-    return idx_x, idx_y
-
-
-def _build_deconv_factors_2d(phihat1, phihat2, n_modes1, n_modes2, modeord=0):
-    """Build 2D deconvolution factors as outer product."""
-    k1_min = -n_modes1 // 2
-    k1_max = (n_modes1 - 1) // 2
-    k2_min = -n_modes2 // 2
-    k2_max = (n_modes2 - 1) // 2
-
-    # 1D factors
-    factors_pos_x = 1.0 / phihat1[: k1_max + 1]
-    factors_neg_x = 1.0 / phihat1[1 : -k1_min + 1][::-1]
-    factors_pos_y = 1.0 / phihat2[: k2_max + 1]
-    factors_neg_y = 1.0 / phihat2[1 : -k2_min + 1][::-1]
-
-    if modeord == 0:
-        factors_x = jnp.concatenate([factors_neg_x, factors_pos_x])
-        factors_y = jnp.concatenate([factors_neg_y, factors_pos_y])
-    else:
-        factors_x = jnp.concatenate([factors_pos_x, factors_neg_x])
-        factors_y = jnp.concatenate([factors_pos_y, factors_neg_y])
-
-    # 2D factors via outer product
-    factors_2d = factors_y[:, None] * factors_x[None, :]
-
-    return factors_2d
-
-
-def _deconvolve_shuffle_2d_vectorized(
-    fw_hat: jax.Array,
-    phihat1: jax.Array,
-    phihat2: jax.Array,
-    n_modes1: int,
-    n_modes2: int,
-    modeord: int = 0,
-) -> jax.Array:
-    """Vectorized 2D deconvolution and shuffling."""
-    nf1 = fw_hat.shape[-1]
-    nf2 = fw_hat.shape[-2]
-
-    # Build indices and factors
-    idx_x, idx_y = _build_indices_2d(nf1, nf2, n_modes1, n_modes2, modeord)
-    factors_2d = _build_deconv_factors_2d(phihat1, phihat2, n_modes1, n_modes2, modeord)
-
-    # Extract using advanced indexing: fw_hat[..., idx_y, :][:, :, idx_x]
-    # For batched: (n_trans, nf2, nf1) -> (n_trans, n_modes2, n_modes1)
-    f = fw_hat[..., idx_y, :][..., idx_x] * factors_2d
-
-    return f
-
-
-def _build_indices_3d(nf1, nf2, nf3, n_modes1, n_modes2, n_modes3, modeord=0):
-    """Build extraction indices for 3D deconvolution."""
-    k1_min, k1_max = -n_modes1 // 2, (n_modes1 - 1) // 2
-    k2_min, k2_max = -n_modes2 // 2, (n_modes2 - 1) // 2
-    k3_min, k3_max = -n_modes3 // 2, (n_modes3 - 1) // 2
-
-    idx_pos_x = jnp.arange(k1_max + 1)
-    idx_neg_x = jnp.arange(nf1 + k1_min, nf1)
-    idx_pos_y = jnp.arange(k2_max + 1)
-    idx_neg_y = jnp.arange(nf2 + k2_min, nf2)
-    idx_pos_z = jnp.arange(k3_max + 1)
-    idx_neg_z = jnp.arange(nf3 + k3_min, nf3)
-
-    if modeord == 0:
-        idx_x = jnp.concatenate([idx_neg_x, idx_pos_x])
-        idx_y = jnp.concatenate([idx_neg_y, idx_pos_y])
-        idx_z = jnp.concatenate([idx_neg_z, idx_pos_z])
-    else:
-        idx_x = jnp.concatenate([idx_pos_x, idx_neg_x])
-        idx_y = jnp.concatenate([idx_pos_y, idx_neg_y])
-        idx_z = jnp.concatenate([idx_pos_z, idx_neg_z])
-
-    return idx_x, idx_y, idx_z
-
-
-def _build_deconv_factors_3d(phihat1, phihat2, phihat3, n_modes1, n_modes2, n_modes3, modeord=0):
-    """Build 3D deconvolution factors."""
-    k1_min, k1_max = -n_modes1 // 2, (n_modes1 - 1) // 2
-    k2_min, k2_max = -n_modes2 // 2, (n_modes2 - 1) // 2
-    k3_min, k3_max = -n_modes3 // 2, (n_modes3 - 1) // 2
-
-    factors_pos_x = 1.0 / phihat1[: k1_max + 1]
-    factors_neg_x = 1.0 / phihat1[1 : -k1_min + 1][::-1]
-    factors_pos_y = 1.0 / phihat2[: k2_max + 1]
-    factors_neg_y = 1.0 / phihat2[1 : -k2_min + 1][::-1]
-    factors_pos_z = 1.0 / phihat3[: k3_max + 1]
-    factors_neg_z = 1.0 / phihat3[1 : -k3_min + 1][::-1]
-
-    if modeord == 0:
-        factors_x = jnp.concatenate([factors_neg_x, factors_pos_x])
-        factors_y = jnp.concatenate([factors_neg_y, factors_pos_y])
-        factors_z = jnp.concatenate([factors_neg_z, factors_pos_z])
-    else:
-        factors_x = jnp.concatenate([factors_pos_x, factors_neg_x])
-        factors_y = jnp.concatenate([factors_pos_y, factors_neg_y])
-        factors_z = jnp.concatenate([factors_pos_z, factors_neg_z])
-
-    # 3D factors via outer product
-    factors_3d = factors_z[:, None, None] * factors_y[None, :, None] * factors_x[None, None, :]
-
-    return factors_3d
-
-
-def _deconvolve_shuffle_3d_vectorized(
-    fw_hat: jax.Array,
-    phihat1: jax.Array,
-    phihat2: jax.Array,
-    phihat3: jax.Array,
-    n_modes1: int,
-    n_modes2: int,
-    n_modes3: int,
-    modeord: int = 0,
-) -> jax.Array:
-    """Vectorized 3D deconvolution and shuffling."""
-    nf1, nf2, nf3 = fw_hat.shape[-1], fw_hat.shape[-2], fw_hat.shape[-3]
-
-    # Build indices and factors
-    idx_x, idx_y, idx_z = _build_indices_3d(nf1, nf2, nf3, n_modes1, n_modes2, n_modes3, modeord)
-    factors_3d = _build_deconv_factors_3d(phihat1, phihat2, phihat3, n_modes1, n_modes2, n_modes3, modeord)
-
-    # Extract using advanced indexing
-    # fw_hat shape: (n_trans, nf3, nf2, nf1) or (nf3, nf2, nf1)
-    f = fw_hat[..., idx_z, :, :][..., idx_y, :][..., idx_x] * factors_3d
 
     return f

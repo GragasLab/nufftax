@@ -2,11 +2,9 @@
 
 from .deconvolve import (
     deconvolve_pad_1d,
-    deconvolve_pad_1d_vectorized,
     deconvolve_pad_2d,
     deconvolve_pad_3d,
     deconvolve_shuffle_1d,
-    deconvolve_shuffle_1d_vectorized,
     deconvolve_shuffle_2d,
     deconvolve_shuffle_3d,
 )
@@ -50,6 +48,4 @@ __all__ = [
     "deconvolve_pad_2d",
     "deconvolve_shuffle_3d",
     "deconvolve_pad_3d",
-    "deconvolve_shuffle_1d_vectorized",
-    "deconvolve_pad_1d_vectorized",
 ]

@@ -7,6 +7,9 @@ the Fourier coefficients by the kernel's Fourier transform.
 For Type 1: deconvolve and shuffle from fine grid FFT to output modes
 For Type 2: deconvolve and pad from input modes to fine grid for iFFT
 
+All implementations are fully vectorized (no Python for loops) for
+optimal JAX/XLA performance on GPU.
+
 Reference: FINUFFT src/finufft_core.cpp (deconvolveshuffle1d, etc.)
 """
 
@@ -14,6 +17,52 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+
+# ============================================================================
+# Helper functions for building indices and factors
+# ============================================================================
+
+
+def _build_deconv_factors_1d(phihat: jax.Array, n_modes: int, modeord: int = 0):
+    """Build deconvolution factor array for 1D case."""
+    kmin = -n_modes // 2
+    kmax = (n_modes - 1) // 2
+
+    # Build factor array in output mode order
+    if modeord == 0:
+        # CMCL: [kmin, ..., -1, 0, 1, ..., kmax]
+        factors_neg = 1.0 / phihat[1 : -kmin + 1][::-1]
+        factors_pos = 1.0 / phihat[: kmax + 1]
+        factors = jnp.concatenate([factors_neg, factors_pos])
+    else:
+        # FFT-style: [0, ..., kmax, kmin, ..., -1]
+        factors_pos = 1.0 / phihat[: kmax + 1]
+        factors_neg = 1.0 / phihat[1 : -kmin + 1][::-1]
+        factors = jnp.concatenate([factors_pos, factors_neg])
+
+    return factors
+
+
+def _build_extraction_indices_1d(nf: int, n_modes: int, modeord: int = 0):
+    """Build indices to extract modes from FFT output."""
+    kmin = -n_modes // 2
+    kmax = (n_modes - 1) // 2
+
+    # Indices in fw_hat for positive and negative frequencies
+    idx_pos = jnp.arange(kmax + 1)
+    idx_neg = jnp.arange(nf + kmin, nf)
+
+    if modeord == 0:
+        indices = jnp.concatenate([idx_neg, idx_pos])
+    else:
+        indices = jnp.concatenate([idx_pos, idx_neg])
+
+    return indices
+
+
+# ============================================================================
+# 1D Deconvolution (Vectorized)
+# ============================================================================
 
 
 @partial(jax.jit, static_argnums=(2, 3))
@@ -26,8 +75,7 @@ def deconvolve_shuffle_1d(
     """
     Deconvolve and shuffle 1D FFT output to Fourier coefficients (Type 1).
 
-    Applies deconvolution (division by kernel Fourier coeffs) and shuffles
-    from FFT ordering to output mode ordering.
+    Fully vectorized implementation.
 
     Args:
         fw_hat: FFT of fine grid, shape (nf,) or (n_trans, nf)
@@ -38,36 +86,14 @@ def deconvolve_shuffle_1d(
     Returns:
         f: Fourier coefficients, shape (n_modes,) or (n_trans, n_modes)
     """
-    batched = fw_hat.ndim == 2
-    if not batched:
-        fw_hat = fw_hat[None, :]
-
     nf = fw_hat.shape[-1]
 
-    # Frequency ranges for output modes
-    # CMCL ordering: from -n_modes//2 to (n_modes-1)//2
-    kmin = -n_modes // 2
-    kmax = (n_modes - 1) // 2
+    # Build indices and factors
+    indices = _build_extraction_indices_1d(nf, n_modes, modeord)
+    factors = _build_deconv_factors_1d(phihat, n_modes, modeord)
 
-    # Positive frequencies: k = 0, 1, ..., kmax
-    # These are at indices 0, 1, ..., kmax in fw_hat
-    f_pos = fw_hat[..., : kmax + 1] / phihat[: kmax + 1]
-
-    # Negative frequencies: k = kmin, ..., -1
-    # These are at indices nf+kmin, ..., nf-1 in fw_hat
-    # The kernel is symmetric, so phihat[-k] = phihat[k]
-    neg_indices = jnp.arange(nf + kmin, nf)
-    f_neg = fw_hat[..., neg_indices] / phihat[1 : -kmin + 1][::-1]
-
-    if modeord == 0:
-        # CMCL ordering: negative frequencies first, then positive
-        f = jnp.concatenate([f_neg, f_pos], axis=-1)
-    else:
-        # FFT-style ordering: positive frequencies first, then negative
-        f = jnp.concatenate([f_pos, f_neg], axis=-1)
-
-    if not batched:
-        f = f[0]
+    # Extract and deconvolve in one step
+    f = fw_hat[..., indices] * factors
 
     return f
 
@@ -82,8 +108,7 @@ def deconvolve_pad_1d(
     """
     Deconvolve and pad 1D Fourier coefficients for iFFT (Type 2).
 
-    Applies deconvolution (division by kernel Fourier coeffs) and pads
-    with zeros for the fine grid iFFT.
+    Fully vectorized implementation.
 
     Args:
         f: Fourier coefficients, shape (n_modes,) or (n_trans, n_modes)
@@ -94,46 +119,43 @@ def deconvolve_pad_1d(
     Returns:
         fw_hat: Padded and deconvolved grid for iFFT, shape (nf,) or (n_trans, nf)
     """
-    batched = f.ndim == 2
-    if not batched:
-        f = f[None, :]
-
-    n_trans, n_modes = f.shape
-
-    # Frequency ranges
+    n_modes = f.shape[-1]
     kmin = -n_modes // 2
     kmax = (n_modes - 1) // 2
 
+    # Build factors in input order
+    factors = _build_deconv_factors_1d(phihat, n_modes, modeord)
+
+    # Deconvolve
+    f_deconv = f * factors
+
+    # Split into positive and negative frequencies
     if modeord == 0:
-        # CMCL ordering: f contains [f[kmin], ..., f[-1], f[0], ..., f[kmax]]
-        n_neg = -kmin  # Number of negative frequencies
-        f_neg = f[..., :n_neg]
-        f_pos = f[..., n_neg:]
+        n_neg = -kmin
+        f_neg = f_deconv[..., :n_neg]
+        f_pos = f_deconv[..., n_neg:]
     else:
-        # FFT-style ordering: f contains [f[0], ..., f[kmax], f[kmin], ..., f[-1]]
         n_pos = kmax + 1
-        f_pos = f[..., :n_pos]
-        f_neg = f[..., n_pos:]
+        f_pos = f_deconv[..., :n_pos]
+        f_neg = f_deconv[..., n_pos:]
 
-    # Deconvolve positive frequencies
-    f_pos_deconv = f_pos / phihat[: kmax + 1]
-
-    # Deconvolve negative frequencies (kernel is symmetric)
-    f_neg_deconv = f_neg / phihat[1 : -kmin + 1][::-1]
-
-    # Initialize output with zeros
-    fw_hat = jnp.zeros((n_trans, nf), dtype=f.dtype)
-
-    # Place positive frequencies at indices 0, 1, ..., kmax
-    fw_hat = fw_hat.at[..., : kmax + 1].set(f_pos_deconv)
-
-    # Place negative frequencies at indices nf+kmin, ..., nf-1
-    fw_hat = fw_hat.at[..., nf + kmin :].set(f_neg_deconv)
-
-    if not batched:
-        fw_hat = fw_hat[0]
+    # Create output with zeros and place values
+    if f.ndim == 1:
+        fw_hat = jnp.zeros(nf, dtype=f.dtype)
+        fw_hat = fw_hat.at[: kmax + 1].set(f_pos)
+        fw_hat = fw_hat.at[nf + kmin :].set(f_neg)
+    else:
+        n_trans = f.shape[0]
+        fw_hat = jnp.zeros((n_trans, nf), dtype=f.dtype)
+        fw_hat = fw_hat.at[:, : kmax + 1].set(f_pos)
+        fw_hat = fw_hat.at[:, nf + kmin :].set(f_neg)
 
     return fw_hat
+
+
+# ============================================================================
+# 2D Deconvolution (Vectorized - no for loops)
+# ============================================================================
 
 
 @partial(jax.jit, static_argnums=(3, 4, 5))
@@ -148,6 +170,8 @@ def deconvolve_shuffle_2d(
     """
     Deconvolve and shuffle 2D FFT output to Fourier coefficients (Type 1).
 
+    Fully vectorized implementation using advanced indexing.
+
     Args:
         fw_hat: FFT of fine grid, shape (nf2, nf1) or (n_trans, nf2, nf1)
         phihat1, phihat2: Kernel Fourier coeffs for each dimension
@@ -161,49 +185,25 @@ def deconvolve_shuffle_2d(
     if not batched:
         fw_hat = fw_hat[None, :, :]
 
-    n_trans, nf2, nf1 = fw_hat.shape
+    nf2, nf1 = fw_hat.shape[-2], fw_hat.shape[-1]
 
-    # Process each y-row using 1D deconvolution
-    # First, extract and deconvolve along x (dim 1)
-    k1_min = -n_modes1 // 2
-    k1_max = (n_modes1 - 1) // 2
-    k2_min = -n_modes2 // 2
-    k2_max = (n_modes2 - 1) // 2
+    # Build extraction indices for each dimension
+    indices1 = _build_extraction_indices_1d(nf1, n_modes1, modeord)
+    indices2 = _build_extraction_indices_1d(nf2, n_modes2, modeord)
 
-    # Build the output array
-    f = jnp.zeros((n_trans, n_modes2, n_modes1), dtype=fw_hat.dtype)
+    # Build deconvolution factors for each dimension
+    factors1 = _build_deconv_factors_1d(phihat1, n_modes1, modeord)
+    factors2 = _build_deconv_factors_1d(phihat2, n_modes2, modeord)
 
-    # Deconvolution factors for x dimension
-    deconv_pos_x = 1.0 / phihat1[: k1_max + 1]
-    deconv_neg_x = 1.0 / phihat1[1 : -k1_min + 1][::-1]
+    # 2D deconvolution factors via outer product
+    factors_2d = factors2[:, None] * factors1[None, :]  # (n_modes2, n_modes1)
 
-    # Deconvolution factors for y dimension
-    deconv_pos_y = 1.0 / phihat2[: k2_max + 1]
-    deconv_neg_y = 1.0 / phihat2[1 : -k2_min + 1][::-1]
+    # Extract using advanced indexing: fw_hat[..., indices2, :][:, :, indices1]
+    # Use meshgrid for 2D indexing
+    idx2, idx1 = jnp.meshgrid(indices2, indices1, indexing="ij")
 
-    # Process positive y frequencies (k2 = 0, 1, ..., k2_max)
-    for k2 in range(k2_max + 1):
-        row = fw_hat[:, k2, :]  # (n_trans, nf1)
-        # Extract and deconvolve x
-        f_pos = row[:, : k1_max + 1] * deconv_pos_x
-        f_neg = row[:, nf1 + k1_min :] * deconv_neg_x
-        # Deconvolve y
-        y_factor = deconv_pos_y[k2]
-        if modeord == 0:
-            f = f.at[:, -k2_min + k2, :].set(jnp.concatenate([f_neg * y_factor, f_pos * y_factor], axis=-1))
-        else:
-            f = f.at[:, k2, :].set(jnp.concatenate([f_pos * y_factor, f_neg * y_factor], axis=-1))
-
-    # Process negative y frequencies (k2 = k2_min, ..., -1)
-    for k2 in range(k2_min, 0):
-        row = fw_hat[:, nf2 + k2, :]
-        f_pos = row[:, : k1_max + 1] * deconv_pos_x
-        f_neg = row[:, nf1 + k1_min :] * deconv_neg_x
-        y_factor = deconv_neg_y[-k2 - 1]
-        if modeord == 0:
-            f = f.at[:, k2 - k2_min, :].set(jnp.concatenate([f_neg * y_factor, f_pos * y_factor], axis=-1))
-        else:
-            f = f.at[:, n_modes2 + k2, :].set(jnp.concatenate([f_pos * y_factor, f_neg * y_factor], axis=-1))
+    # Extract all modes at once
+    f = fw_hat[:, idx2, idx1] * factors_2d[None, :, :]
 
     if not batched:
         f = f[0]
@@ -222,6 +222,8 @@ def deconvolve_pad_2d(
 ) -> jax.Array:
     """
     Deconvolve and pad 2D Fourier coefficients for iFFT (Type 2).
+
+    Fully vectorized implementation.
 
     Args:
         f: Fourier coefficients, shape (n_modes2, n_modes1) or (n_trans, n_modes2, n_modes1)
@@ -243,57 +245,55 @@ def deconvolve_pad_2d(
     k2_min = -n_modes2 // 2
     k2_max = (n_modes2 - 1) // 2
 
-    # Deconvolution factors
-    deconv_pos_x = 1.0 / phihat1[: k1_max + 1]
-    deconv_neg_x = 1.0 / phihat1[1 : -k1_min + 1][::-1]
-    deconv_pos_y = 1.0 / phihat2[: k2_max + 1]
-    deconv_neg_y = 1.0 / phihat2[1 : -k2_min + 1][::-1]
+    # Build deconvolution factors
+    factors1 = _build_deconv_factors_1d(phihat1, n_modes1, modeord)
+    factors2 = _build_deconv_factors_1d(phihat2, n_modes2, modeord)
+    factors_2d = factors2[:, None] * factors1[None, :]
+
+    # Deconvolve
+    f_deconv = f * factors_2d[None, :, :]
+
+    # Split into quadrants based on positive/negative frequencies
+    if modeord == 0:
+        # CMCL: f[..., i, j] -> (k2_min + i, k1_min + j)
+        n_neg1 = -k1_min
+        n_neg2 = -k2_min
+        # Quadrants: (neg2, neg1), (neg2, pos1), (pos2, neg1), (pos2, pos1)
+        f_nn = f_deconv[:, :n_neg2, :n_neg1]  # neg y, neg x
+        f_np = f_deconv[:, :n_neg2, n_neg1:]  # neg y, pos x
+        f_pn = f_deconv[:, n_neg2:, :n_neg1]  # pos y, neg x
+        f_pp = f_deconv[:, n_neg2:, n_neg1:]  # pos y, pos x
+    else:
+        # FFT-style: f[..., i, j] -> output order is [0..kmax, kmin..-1]
+        n_pos1 = k1_max + 1
+        n_pos2 = k2_max + 1
+        f_pp = f_deconv[:, :n_pos2, :n_pos1]  # pos y, pos x
+        f_pn = f_deconv[:, :n_pos2, n_pos1:]  # pos y, neg x
+        f_np = f_deconv[:, n_pos2:, :n_pos1]  # neg y, pos x
+        f_nn = f_deconv[:, n_pos2:, n_pos1:]  # neg y, neg x
 
     # Initialize output
     fw_hat = jnp.zeros((n_trans, nf2, nf1), dtype=f.dtype)
 
-    if modeord == 0:
-        # CMCL: f[..., i, j] corresponds to (k2_min + i, k1_min + j)
-        n_neg_x = -k1_min
-    else:
-        n_neg_x = 0
-
-    # Process positive y frequencies
-    for k2 in range(k2_max + 1):
-        if modeord == 0:
-            row = f[:, -k2_min + k2, :]
-            f_neg = row[:, :n_neg_x] * deconv_neg_x
-            f_pos = row[:, n_neg_x:] * deconv_pos_x
-        else:
-            row = f[:, k2, :]
-            n_pos_x = k1_max + 1
-            f_pos = row[:, :n_pos_x] * deconv_pos_x
-            f_neg = row[:, n_pos_x:] * deconv_neg_x
-
-        y_factor = deconv_pos_y[k2]
-        fw_hat = fw_hat.at[:, k2, : k1_max + 1].set(f_pos * y_factor)
-        fw_hat = fw_hat.at[:, k2, nf1 + k1_min :].set(f_neg * y_factor)
-
-    # Process negative y frequencies
-    for k2 in range(k2_min, 0):
-        if modeord == 0:
-            row = f[:, k2 - k2_min, :]
-            f_neg = row[:, :n_neg_x] * deconv_neg_x
-            f_pos = row[:, n_neg_x:] * deconv_pos_x
-        else:
-            row = f[:, n_modes2 + k2, :]
-            n_pos_x = k1_max + 1
-            f_pos = row[:, :n_pos_x] * deconv_pos_x
-            f_neg = row[:, n_pos_x:] * deconv_neg_x
-
-        y_factor = deconv_neg_y[-k2 - 1]
-        fw_hat = fw_hat.at[:, nf2 + k2, : k1_max + 1].set(f_pos * y_factor)
-        fw_hat = fw_hat.at[:, nf2 + k2, nf1 + k1_min :].set(f_neg * y_factor)
+    # Place quadrants in FFT order
+    # Positive y (0 to k2_max), positive x (0 to k1_max)
+    fw_hat = fw_hat.at[:, : k2_max + 1, : k1_max + 1].set(f_pp)
+    # Positive y, negative x (nf1 + k1_min to nf1 - 1)
+    fw_hat = fw_hat.at[:, : k2_max + 1, nf1 + k1_min :].set(f_pn)
+    # Negative y (nf2 + k2_min to nf2 - 1), positive x
+    fw_hat = fw_hat.at[:, nf2 + k2_min :, : k1_max + 1].set(f_np)
+    # Negative y, negative x
+    fw_hat = fw_hat.at[:, nf2 + k2_min :, nf1 + k1_min :].set(f_nn)
 
     if not batched:
         fw_hat = fw_hat[0]
 
     return fw_hat
+
+
+# ============================================================================
+# 3D Deconvolution (Vectorized - no for loops)
+# ============================================================================
 
 
 @partial(jax.jit, static_argnums=(4, 5, 6, 7))
@@ -310,6 +310,8 @@ def deconvolve_shuffle_3d(
     """
     Deconvolve and shuffle 3D FFT output to Fourier coefficients (Type 1).
 
+    Fully vectorized implementation using advanced indexing.
+
     Args:
         fw_hat: FFT of fine grid, shape (nf3, nf2, nf1) or (n_trans, nf3, nf2, nf1)
         phihat1, phihat2, phihat3: Kernel Fourier coeffs for each dimension
@@ -324,77 +326,26 @@ def deconvolve_shuffle_3d(
     if not batched:
         fw_hat = fw_hat[None, :, :, :]
 
-    n_trans, nf3, nf2, nf1 = fw_hat.shape
+    nf3, nf2, nf1 = fw_hat.shape[-3], fw_hat.shape[-2], fw_hat.shape[-1]
 
-    k1_min = -n_modes1 // 2
-    k1_max = (n_modes1 - 1) // 2
-    k2_min = -n_modes2 // 2
-    k2_max = (n_modes2 - 1) // 2
-    k3_min = -n_modes3 // 2
-    k3_max = (n_modes3 - 1) // 2
+    # Build extraction indices for each dimension
+    indices1 = _build_extraction_indices_1d(nf1, n_modes1, modeord)
+    indices2 = _build_extraction_indices_1d(nf2, n_modes2, modeord)
+    indices3 = _build_extraction_indices_1d(nf3, n_modes3, modeord)
 
-    # Deconvolution factors
-    deconv_pos_x = 1.0 / phihat1[: k1_max + 1]
-    deconv_neg_x = 1.0 / phihat1[1 : -k1_min + 1][::-1]
-    deconv_pos_y = 1.0 / phihat2[: k2_max + 1]
-    deconv_neg_y = 1.0 / phihat2[1 : -k2_min + 1][::-1]
-    deconv_pos_z = 1.0 / phihat3[: k3_max + 1]
-    deconv_neg_z = 1.0 / phihat3[1 : -k3_min + 1][::-1]
+    # Build deconvolution factors for each dimension
+    factors1 = _build_deconv_factors_1d(phihat1, n_modes1, modeord)
+    factors2 = _build_deconv_factors_1d(phihat2, n_modes2, modeord)
+    factors3 = _build_deconv_factors_1d(phihat3, n_modes3, modeord)
 
-    f = jnp.zeros((n_trans, n_modes3, n_modes2, n_modes1), dtype=fw_hat.dtype)
+    # 3D deconvolution factors via outer product
+    factors_3d = factors3[:, None, None] * factors2[None, :, None] * factors1[None, None, :]
 
-    # Process all z slices
-    for k3 in range(k3_max + 1):
-        z_factor = deconv_pos_z[k3]
-        z_out = -k3_min + k3 if modeord == 0 else k3
+    # Create 3D index meshgrid
+    idx3, idx2, idx1 = jnp.meshgrid(indices3, indices2, indices1, indexing="ij")
 
-        for k2 in range(k2_max + 1):
-            y_factor = deconv_pos_y[k2] * z_factor
-            y_out = -k2_min + k2 if modeord == 0 else k2
-            row = fw_hat[:, k3, k2, :]
-            f_pos = row[:, : k1_max + 1] * deconv_pos_x * y_factor
-            f_neg = row[:, nf1 + k1_min :] * deconv_neg_x * y_factor
-            if modeord == 0:
-                f = f.at[:, z_out, y_out, :].set(jnp.concatenate([f_neg, f_pos], axis=-1))
-            else:
-                f = f.at[:, z_out, y_out, :].set(jnp.concatenate([f_pos, f_neg], axis=-1))
-
-        for k2 in range(k2_min, 0):
-            y_factor = deconv_neg_y[-k2 - 1] * z_factor
-            y_out = k2 - k2_min if modeord == 0 else n_modes2 + k2
-            row = fw_hat[:, k3, nf2 + k2, :]
-            f_pos = row[:, : k1_max + 1] * deconv_pos_x * y_factor
-            f_neg = row[:, nf1 + k1_min :] * deconv_neg_x * y_factor
-            if modeord == 0:
-                f = f.at[:, z_out, y_out, :].set(jnp.concatenate([f_neg, f_pos], axis=-1))
-            else:
-                f = f.at[:, z_out, y_out, :].set(jnp.concatenate([f_pos, f_neg], axis=-1))
-
-    for k3 in range(k3_min, 0):
-        z_factor = deconv_neg_z[-k3 - 1]
-        z_out = k3 - k3_min if modeord == 0 else n_modes3 + k3
-
-        for k2 in range(k2_max + 1):
-            y_factor = deconv_pos_y[k2] * z_factor
-            y_out = -k2_min + k2 if modeord == 0 else k2
-            row = fw_hat[:, nf3 + k3, k2, :]
-            f_pos = row[:, : k1_max + 1] * deconv_pos_x * y_factor
-            f_neg = row[:, nf1 + k1_min :] * deconv_neg_x * y_factor
-            if modeord == 0:
-                f = f.at[:, z_out, y_out, :].set(jnp.concatenate([f_neg, f_pos], axis=-1))
-            else:
-                f = f.at[:, z_out, y_out, :].set(jnp.concatenate([f_pos, f_neg], axis=-1))
-
-        for k2 in range(k2_min, 0):
-            y_factor = deconv_neg_y[-k2 - 1] * z_factor
-            y_out = k2 - k2_min if modeord == 0 else n_modes2 + k2
-            row = fw_hat[:, nf3 + k3, nf2 + k2, :]
-            f_pos = row[:, : k1_max + 1] * deconv_pos_x * y_factor
-            f_neg = row[:, nf1 + k1_min :] * deconv_neg_x * y_factor
-            if modeord == 0:
-                f = f.at[:, z_out, y_out, :].set(jnp.concatenate([f_neg, f_pos], axis=-1))
-            else:
-                f = f.at[:, z_out, y_out, :].set(jnp.concatenate([f_pos, f_neg], axis=-1))
+    # Extract all modes at once using advanced indexing
+    f = fw_hat[:, idx3, idx2, idx1] * factors_3d[None, :, :, :]
 
     if not batched:
         f = f[0]
@@ -415,6 +366,8 @@ def deconvolve_pad_3d(
 ) -> jax.Array:
     """
     Deconvolve and pad 3D Fourier coefficients for iFFT (Type 2).
+
+    Fully vectorized implementation.
 
     Args:
         f: Fourier coefficients, shape (n_modes3, n_modes2, n_modes1) or
@@ -439,183 +392,64 @@ def deconvolve_pad_3d(
     k3_min = -n_modes3 // 2
     k3_max = (n_modes3 - 1) // 2
 
-    # Deconvolution factors
-    deconv_pos_x = 1.0 / phihat1[: k1_max + 1]
-    deconv_neg_x = 1.0 / phihat1[1 : -k1_min + 1][::-1]
-    deconv_pos_y = 1.0 / phihat2[: k2_max + 1]
-    deconv_neg_y = 1.0 / phihat2[1 : -k2_min + 1][::-1]
-    deconv_pos_z = 1.0 / phihat3[: k3_max + 1]
-    deconv_neg_z = 1.0 / phihat3[1 : -k3_min + 1][::-1]
+    # Build deconvolution factors
+    factors1 = _build_deconv_factors_1d(phihat1, n_modes1, modeord)
+    factors2 = _build_deconv_factors_1d(phihat2, n_modes2, modeord)
+    factors3 = _build_deconv_factors_1d(phihat3, n_modes3, modeord)
+    factors_3d = factors3[:, None, None] * factors2[None, :, None] * factors1[None, None, :]
 
+    # Deconvolve
+    f_deconv = f * factors_3d[None, :, :, :]
+
+    # Split into octants based on positive/negative frequencies
+    if modeord == 0:
+        n_neg1 = -k1_min
+        n_neg2 = -k2_min
+        n_neg3 = -k3_min
+        # Extract 8 octants (nnn, nnp, npn, npp, pnn, pnp, ppn, ppp)
+        f_nnn = f_deconv[:, :n_neg3, :n_neg2, :n_neg1]
+        f_nnp = f_deconv[:, :n_neg3, :n_neg2, n_neg1:]
+        f_npn = f_deconv[:, :n_neg3, n_neg2:, :n_neg1]
+        f_npp = f_deconv[:, :n_neg3, n_neg2:, n_neg1:]
+        f_pnn = f_deconv[:, n_neg3:, :n_neg2, :n_neg1]
+        f_pnp = f_deconv[:, n_neg3:, :n_neg2, n_neg1:]
+        f_ppn = f_deconv[:, n_neg3:, n_neg2:, :n_neg1]
+        f_ppp = f_deconv[:, n_neg3:, n_neg2:, n_neg1:]
+    else:
+        n_pos1 = k1_max + 1
+        n_pos2 = k2_max + 1
+        n_pos3 = k3_max + 1
+        f_ppp = f_deconv[:, :n_pos3, :n_pos2, :n_pos1]
+        f_ppn = f_deconv[:, :n_pos3, :n_pos2, n_pos1:]
+        f_pnp = f_deconv[:, :n_pos3, n_pos2:, :n_pos1]
+        f_pnn = f_deconv[:, :n_pos3, n_pos2:, n_pos1:]
+        f_npp = f_deconv[:, n_pos3:, :n_pos2, :n_pos1]
+        f_npn = f_deconv[:, n_pos3:, :n_pos2, n_pos1:]
+        f_nnp = f_deconv[:, n_pos3:, n_pos2:, :n_pos1]
+        f_nnn = f_deconv[:, n_pos3:, n_pos2:, n_pos1:]
+
+    # Initialize output
     fw_hat = jnp.zeros((n_trans, nf3, nf2, nf1), dtype=f.dtype)
 
-    n_neg_x = -k1_min if modeord == 0 else 0
-
-    # Helper to extract f_pos, f_neg from a row
-    def extract_x_components(row):
-        if modeord == 0:
-            f_neg = row[:, :n_neg_x] * deconv_neg_x
-            f_pos = row[:, n_neg_x:] * deconv_pos_x
-        else:
-            n_pos_x = k1_max + 1
-            f_pos = row[:, :n_pos_x] * deconv_pos_x
-            f_neg = row[:, n_pos_x:] * deconv_neg_x
-        return f_pos, f_neg
-
-    for k3 in range(k3_max + 1):
-        z_factor = deconv_pos_z[k3]
-        z_in = -k3_min + k3 if modeord == 0 else k3
-
-        for k2 in range(k2_max + 1):
-            y_factor = deconv_pos_y[k2] * z_factor
-            y_in = -k2_min + k2 if modeord == 0 else k2
-            row = f[:, z_in, y_in, :]
-            f_pos, f_neg = extract_x_components(row)
-            fw_hat = fw_hat.at[:, k3, k2, : k1_max + 1].set(f_pos * y_factor)
-            fw_hat = fw_hat.at[:, k3, k2, nf1 + k1_min :].set(f_neg * y_factor)
-
-        for k2 in range(k2_min, 0):
-            y_factor = deconv_neg_y[-k2 - 1] * z_factor
-            y_in = k2 - k2_min if modeord == 0 else n_modes2 + k2
-            row = f[:, z_in, y_in, :]
-            f_pos, f_neg = extract_x_components(row)
-            fw_hat = fw_hat.at[:, k3, nf2 + k2, : k1_max + 1].set(f_pos * y_factor)
-            fw_hat = fw_hat.at[:, k3, nf2 + k2, nf1 + k1_min :].set(f_neg * y_factor)
-
-    for k3 in range(k3_min, 0):
-        z_factor = deconv_neg_z[-k3 - 1]
-        z_in = k3 - k3_min if modeord == 0 else n_modes3 + k3
-
-        for k2 in range(k2_max + 1):
-            y_factor = deconv_pos_y[k2] * z_factor
-            y_in = -k2_min + k2 if modeord == 0 else k2
-            row = f[:, z_in, y_in, :]
-            f_pos, f_neg = extract_x_components(row)
-            fw_hat = fw_hat.at[:, nf3 + k3, k2, : k1_max + 1].set(f_pos * y_factor)
-            fw_hat = fw_hat.at[:, nf3 + k3, k2, nf1 + k1_min :].set(f_neg * y_factor)
-
-        for k2 in range(k2_min, 0):
-            y_factor = deconv_neg_y[-k2 - 1] * z_factor
-            y_in = k2 - k2_min if modeord == 0 else n_modes2 + k2
-            row = f[:, z_in, y_in, :]
-            f_pos, f_neg = extract_x_components(row)
-            fw_hat = fw_hat.at[:, nf3 + k3, nf2 + k2, : k1_max + 1].set(f_pos * y_factor)
-            fw_hat = fw_hat.at[:, nf3 + k3, nf2 + k2, nf1 + k1_min :].set(f_neg * y_factor)
+    # Place octants in FFT order
+    # ppp: positive z, positive y, positive x
+    fw_hat = fw_hat.at[:, : k3_max + 1, : k2_max + 1, : k1_max + 1].set(f_ppp)
+    # ppn: positive z, positive y, negative x
+    fw_hat = fw_hat.at[:, : k3_max + 1, : k2_max + 1, nf1 + k1_min :].set(f_ppn)
+    # pnp: positive z, negative y, positive x
+    fw_hat = fw_hat.at[:, : k3_max + 1, nf2 + k2_min :, : k1_max + 1].set(f_pnp)
+    # pnn: positive z, negative y, negative x
+    fw_hat = fw_hat.at[:, : k3_max + 1, nf2 + k2_min :, nf1 + k1_min :].set(f_pnn)
+    # npp: negative z, positive y, positive x
+    fw_hat = fw_hat.at[:, nf3 + k3_min :, : k2_max + 1, : k1_max + 1].set(f_npp)
+    # npn: negative z, positive y, negative x
+    fw_hat = fw_hat.at[:, nf3 + k3_min :, : k2_max + 1, nf1 + k1_min :].set(f_npn)
+    # nnp: negative z, negative y, positive x
+    fw_hat = fw_hat.at[:, nf3 + k3_min :, nf2 + k2_min :, : k1_max + 1].set(f_nnp)
+    # nnn: negative z, negative y, negative x
+    fw_hat = fw_hat.at[:, nf3 + k3_min :, nf2 + k2_min :, nf1 + k1_min :].set(f_nnn)
 
     if not batched:
         fw_hat = fw_hat[0]
-
-    return fw_hat
-
-
-# ============================================================================
-# Vectorized deconvolution functions (more efficient for JAX)
-# ============================================================================
-
-
-def _build_deconv_factors_1d(phihat: jax.Array, n_modes: int, modeord: int = 0):
-    """Build deconvolution factor array for 1D case."""
-    kmin = -n_modes // 2
-    kmax = (n_modes - 1) // 2
-
-    # Build factor array in output mode order
-    if modeord == 0:
-        # CMCL: [kmin, ..., -1, 0, 1, ..., kmax]
-        # Negative frequencies first
-        factors_neg = 1.0 / phihat[1 : -kmin + 1][::-1]  # for k = kmin, ..., -1
-        factors_pos = 1.0 / phihat[: kmax + 1]  # for k = 0, ..., kmax
-        factors = jnp.concatenate([factors_neg, factors_pos])
-    else:
-        # FFT-style: [0, ..., kmax, kmin, ..., -1]
-        factors_pos = 1.0 / phihat[: kmax + 1]
-        factors_neg = 1.0 / phihat[1 : -kmin + 1][::-1]
-        factors = jnp.concatenate([factors_pos, factors_neg])
-
-    return factors
-
-
-def _build_extraction_indices_1d(nf: int, n_modes: int, modeord: int = 0):
-    """Build indices to extract modes from FFT output."""
-    kmin = -n_modes // 2
-    kmax = (n_modes - 1) // 2
-
-    # Indices in fw_hat for positive and negative frequencies
-    idx_pos = jnp.arange(kmax + 1)
-    idx_neg = jnp.arange(nf + kmin, nf)
-
-    if modeord == 0:
-        # CMCL: output [kmin, ..., -1, 0, ..., kmax]
-        indices = jnp.concatenate([idx_neg, idx_pos])
-    else:
-        # FFT-style: output [0, ..., kmax, kmin, ..., -1]
-        indices = jnp.concatenate([idx_pos, idx_neg])
-
-    return indices
-
-
-@partial(jax.jit, static_argnums=(2, 3))
-def deconvolve_shuffle_1d_vectorized(
-    fw_hat: jax.Array,
-    phihat: jax.Array,
-    n_modes: int,
-    modeord: int = 0,
-) -> jax.Array:
-    """
-    Vectorized 1D deconvolution and shuffling (Type 1).
-
-    More efficient than the loop-based version for large arrays.
-    """
-    nf = fw_hat.shape[-1]
-
-    # Build indices and factors
-    indices = _build_extraction_indices_1d(nf, n_modes, modeord)
-    factors = _build_deconv_factors_1d(phihat, n_modes, modeord)
-
-    # Extract and deconvolve in one step
-    f = fw_hat[..., indices] * factors
-
-    return f
-
-
-@partial(jax.jit, static_argnums=(2, 3))
-def deconvolve_pad_1d_vectorized(
-    f: jax.Array,
-    phihat: jax.Array,
-    nf: int,
-    modeord: int = 0,
-) -> jax.Array:
-    """
-    Vectorized 1D deconvolution and padding (Type 2).
-    """
-    n_modes = f.shape[-1]
-    kmin = -n_modes // 2
-    kmax = (n_modes - 1) // 2
-
-    # Build factors in input order
-    factors = _build_deconv_factors_1d(phihat, n_modes, modeord)
-
-    # Deconvolve
-    f_deconv = f * factors
-
-    # Build placement indices
-    if modeord == 0:
-        n_neg = -kmin
-        f_neg = f_deconv[..., :n_neg]
-        f_pos = f_deconv[..., n_neg:]
-    else:
-        n_pos = kmax + 1
-        f_pos = f_deconv[..., :n_pos]
-        f_neg = f_deconv[..., n_pos:]
-
-    # Create output with zeros and place values
-    if f.ndim == 1:
-        fw_hat = jnp.zeros(nf, dtype=f.dtype)
-        fw_hat = fw_hat.at[: kmax + 1].set(f_pos)
-        fw_hat = fw_hat.at[nf + kmin :].set(f_neg)
-    else:
-        n_trans = f.shape[0]
-        fw_hat = jnp.zeros((n_trans, nf), dtype=f.dtype)
-        fw_hat = fw_hat.at[:, : kmax + 1].set(f_pos)
-        fw_hat = fw_hat.at[:, nf + kmin :].set(f_neg)
 
     return fw_hat
