@@ -1,4 +1,4 @@
-# fftax 🌊
+# nufftax 🌊
 
 **Non-Uniform FFTs that actually play nice with JAX.** ✨
 
@@ -10,7 +10,7 @@
 
 Ever tried to `jax.grad` through a NUFFT and got hit with a wall of errors? 😤 Yeah, us too.
 
-**fftax** is a pure JAX implementation of the Non-Uniform Fast Fourier Transform. No C++ bindings, no XLA custom calls, no tears. Just JAX all the way down. 🐍
+**nufftax** is a pure JAX implementation of the Non-Uniform Fast Fourier Transform. No C++ bindings, no XLA custom calls, no tears. Just JAX all the way down. 🐍
 
 ## ✨ Features
 
@@ -22,7 +22,7 @@ Ever tried to `jax.grad` through a NUFFT and got hit with a wall of errors? 😤
 ## 📦 Installation
 
 ```bash
-pip install fftax
+pip install nufftax
 ```
 
 Or from source:
@@ -37,7 +37,7 @@ pip install -e ".[dev]"
 
 ```python
 import jax.numpy as jnp
-from fftax import nufft1d1, nufft1d2
+from nufftax import nufft1d1, nufft1d2
 
 # Some nonuniform points in [0, 2π)
 x = jnp.array([0.1, 0.5, 1.0, 2.0, 4.5])
@@ -120,7 +120,7 @@ Computes: `c[j] = Σₖ f[k] · exp(i · iflag · k · x[j])`
 
 ## 🔧 How It Works
 
-fftax implements the NUFFT using the standard approach:
+nufftax implements the NUFFT using the standard approach:
 
 1. 📡 **Spreading/Interpolation** - Convolve with a compactly-supported kernel (exponential of semicircle)
 2. 🔢 **FFT** - Standard FFT on the oversampled grid
@@ -142,7 +142,7 @@ pip install -e ".[dev]"
 pytest tests/ -v
 
 # With coverage
-pytest tests/ -v --cov=fftax
+pytest tests/ -v --cov=nufftax
 ```
 
 ## 📄 License

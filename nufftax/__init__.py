@@ -1,5 +1,5 @@
 """
-fftax: Pure JAX implementation of Non-Uniform FFT
+nufftax: Pure JAX implementation of Non-Uniform FFT
 
 This package provides NUFFT (Non-Uniform Fast Fourier Transform) operations
 that are fully compatible with JAX transformations including:
@@ -15,7 +15,7 @@ Main functions:
 
 Example:
     import jax.numpy as jnp
-    from fftax import nufft1d1, nufft1d2
+    from nufftax import nufft1d1, nufft1d2
 
     # Type 1: Nonuniform points to uniform Fourier modes
     x = jnp.array([0.1, 0.5, 1.0, 2.0])  # Nonuniform points

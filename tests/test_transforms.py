@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 # Import NUFFT functions when implemented
-# from fftax import nufft1d1, nufft1d2, nufft2d1, nufft2d2
+# from nufftax import nufft1d1, nufft1d2, nufft2d1, nufft2d2
 
 # ============================================================================
 # Fixtures

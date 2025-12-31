@@ -19,8 +19,8 @@ import pytest
 from numpy.testing import assert_allclose
 
 # Import NUFFT functions when implemented
-# from fftax import nufft1d1, nufft1d2, nufft2d1, nufft2d2, nufft3d1, nufft3d2
-# from fftax.transforms.nufft2 import nufft1d2, nufft2d2, nufft3d2
+# from nufftax import nufft1d1, nufft1d2, nufft2d1, nufft2d2, nufft3d1, nufft3d2
+# from nufftax.transforms.nufft2 import nufft1d2, nufft2d2, nufft3d2
 from tests.conftest import (
     PRECISION_LEVELS,
     dft_nufft1d2,

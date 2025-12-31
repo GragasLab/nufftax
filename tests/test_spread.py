@@ -11,11 +11,11 @@ import pytest
 from numpy.testing import assert_allclose
 
 # Import spreading functions when implemented
-# from fftax.core.spread import (
+# from nufftax.core.spread import (
 #     spread_1d, spread_2d, spread_3d,
 #     interp_1d, interp_2d, interp_3d,
 # )
-from fftax.core.kernel import compute_kernel_params
+from nufftax.core.kernel import compute_kernel_params
 
 # ============================================================================
 # Fixtures
