@@ -191,18 +191,17 @@ def spread_1d_impl(
     # weighted_c[t, j, k] = c[t, j] * weights[j, k]
     weighted_c = c_flat[:, :, None] * weights[None, :, :]  # (n_trans, M, nspread)
 
-    # Flatten for scatter_add
+    # Flatten for segment_sum
     # indices_flat: (M * nspread,)
     indices_flat = indices.ravel()
     # weighted_c_flat: (n_trans, M * nspread)
     weighted_c_flat = weighted_c.reshape(n_trans, -1)
 
-    # Use segment_sum for efficient accumulation
-    # For each transform, accumulate contributions at each grid point
-    def scatter_for_one_transform(fw_t, wc_t):
-        return fw_t.at[indices_flat].add(wc_t)
+    # Use segment_sum for efficient accumulation (faster than add.at)
+    def segment_sum_for_one_transform(wc_t):
+        return jax.ops.segment_sum(wc_t, indices_flat, num_segments=nf)
 
-    fw = jax.vmap(scatter_for_one_transform)(fw, weighted_c_flat)
+    fw = jax.vmap(segment_sum_for_one_transform)(weighted_c_flat)
 
     if not is_batched:
         fw = fw[0]
@@ -367,16 +366,15 @@ def spread_2d_impl(
     # Weighted contributions
     weighted_c = c_flat[:, :, None, None] * weights_2d[None, :, :, :]  # (n_trans, M, nspread, nspread)
 
-    # Flatten for scatter
+    # Flatten for segment_sum
     indices_flat = indices_2d.ravel()  # (M * nspread * nspread,)
     weighted_c_flat = weighted_c.reshape(n_trans, -1)  # (n_trans, M * nspread * nspread)
 
-    # Scatter to flattened grid, then reshape
-    def scatter_for_one_transform(fw_flat_t, wc_t):
-        return fw_flat_t.at[indices_flat].add(wc_t)
+    # Use segment_sum for efficient accumulation (faster than add.at)
+    def segment_sum_for_one_transform(wc_t):
+        return jax.ops.segment_sum(wc_t, indices_flat, num_segments=nf1 * nf2)
 
-    fw_flat = jnp.zeros((n_trans, nf1 * nf2), dtype=c.dtype)
-    fw_flat = jax.vmap(scatter_for_one_transform)(fw_flat, weighted_c_flat)
+    fw_flat = jax.vmap(segment_sum_for_one_transform)(weighted_c_flat)
     fw = fw_flat.reshape(n_trans, nf1, nf2)
 
     if not is_batched:
@@ -550,15 +548,15 @@ def spread_3d_impl(
     # Weighted contributions
     weighted_c = c_flat[:, :, None, None, None] * weights_3d[None, :, :, :, :]
 
-    # Flatten for scatter
+    # Flatten for segment_sum
     indices_flat = indices_3d.ravel()
     weighted_c_flat = weighted_c.reshape(n_trans, -1)
 
-    def scatter_for_one_transform(fw_flat_t, wc_t):
-        return fw_flat_t.at[indices_flat].add(wc_t)
+    # Use segment_sum for efficient accumulation (faster than add.at)
+    def segment_sum_for_one_transform(wc_t):
+        return jax.ops.segment_sum(wc_t, indices_flat, num_segments=nf1 * nf2 * nf3)
 
-    fw_flat = jnp.zeros((n_trans, nf1 * nf2 * nf3), dtype=c.dtype)
-    fw_flat = jax.vmap(scatter_for_one_transform)(fw_flat, weighted_c_flat)
+    fw_flat = jax.vmap(segment_sum_for_one_transform)(weighted_c_flat)
     fw = fw_flat.reshape(n_trans, nf1, nf2, nf3)
 
     if not is_batched:
