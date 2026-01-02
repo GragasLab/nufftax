@@ -1,6 +1,6 @@
-# nufftax 🌊
+# nufftax
 
-**Non-Uniform FFTs that actually play nice with JAX.** ✨
+**Pure JAX implementation of the Non-Uniform Fast Fourier Transform (NUFFT).**
 
 [![CI](https://github.com/geoffroyO/nufftax/actions/workflows/ci.yml/badge.svg)](https://github.com/geoffroyO/nufftax/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
@@ -8,24 +8,27 @@
 
 ---
 
-Ever tried to `jax.grad` through a NUFFT and got hit with a wall of errors? 😤 Yeah, us too.
+**nufftax** provides fully differentiable NUFFT operations in pure JAX. No C++ bindings or XLA custom calls - just JAX operations that work seamlessly with `jit`, `grad`, `vmap`, `jvp`, and `vjp`.
 
-**nufftax** is a pure JAX implementation of the Non-Uniform Fast Fourier Transform. No C++ bindings, no XLA custom calls, no tears. Just JAX all the way down. 🐍
+## Features
 
-## ✨ Features
+- **Pure JAX implementation** - Full compatibility with JAX transformations
+- **All three NUFFT types**:
+  - Type 1: nonuniform to uniform (spreading)
+  - Type 2: uniform to nonuniform (interpolation)
+  - Type 3: nonuniform to nonuniform
+- **1D, 2D, and 3D** transforms
+- **Differentiable** with respect to both point coordinates and values
+- **GPU acceleration** - Runs on CPU and GPU without code changes
+- **Configurable precision** - From 1e-2 to 1e-14
 
-- 🧬 **Pure JAX** - Works with `jit`, `grad`, `vmap`, `jvp`, `vjp`... the whole gang
-- 📐 **1D, 2D, 3D** - Type 1 (nonuniform → uniform) and Type 2 (uniform → nonuniform)
-- 🎯 **Differentiable** - Gradients with respect to both points and values
-- 🚀 **GPU-ready** - Runs on CPU and GPU without code changes
-
-## 📦 Installation
+## Installation
 
 ```bash
 pip install nufftax
 ```
 
-Or from source:
+From source:
 
 ```bash
 git clone https://github.com/geoffroyO/nufftax.git
@@ -33,122 +36,125 @@ cd nufftax
 pip install -e ".[dev]"
 ```
 
-## 🏁 Quick Start
+## Quick Start
 
 ```python
 import jax.numpy as jnp
 from nufftax import nufft1d1, nufft1d2
 
-# Some nonuniform points in [0, 2π)
-x = jnp.array([0.1, 0.5, 1.0, 2.0, 4.5])
+# Nonuniform points in [-pi, pi)
+x = jnp.array([0.1, 0.5, 1.0, 2.0, -1.5])
 c = jnp.array([1+1j, 2-1j, 0.5, 1j, -1+0.5j])
 
-# Type 1: Nonuniform points → Fourier modes
+# Type 1: nonuniform points -> Fourier modes
 f = nufft1d1(x, c, n_modes=64, eps=1e-6)
 
-# Type 2: Fourier modes → Nonuniform points
-c_back = nufft1d2(x, f, eps=1e-6)
+# Type 2: Fourier modes -> nonuniform points
+c_interp = nufft1d2(x, f, eps=1e-6)
 ```
 
-## 🎉 The Fun Part: Autodiff Just Works
+## Autodifferentiation
+
+Gradients work out of the box:
 
 ```python
 import jax
 
-# Gradient w.r.t. the strengths
-def loss(c):
+# Gradient w.r.t. strengths
+def loss_c(c):
     f = nufft1d1(x, c, n_modes=64, eps=1e-6)
     return jnp.sum(jnp.abs(f) ** 2)
 
-grad_c = jax.grad(loss)(c)  # It just works! 🎊
+grad_c = jax.grad(loss_c)(c)
 
-# Gradient w.r.t. the points (yes, really)
+# Gradient w.r.t. point coordinates
 def loss_x(x):
     f = nufft1d1(x, c, n_modes=64, eps=1e-6)
     return jnp.sum(jnp.abs(f) ** 2)
 
-grad_x = jax.grad(loss_x)(x)  # This too! 🤯
+grad_x = jax.grad(loss_x)(x)
 
-# Batch over multiple sets of points
+# Batched transforms
 batched_nufft = jax.vmap(lambda xi: nufft1d1(xi, c, n_modes=64))
 x_batch = jnp.stack([x, x + 0.1, x + 0.2])
-f_batch = batched_nufft(x_batch)  # Shape: (3, 64) 📦
+f_batch = batched_nufft(x_batch)  # Shape: (3, 64)
 ```
 
-## 📚 API Reference
+## API Reference
 
-### Type 1: Nonuniform → Uniform 🔀
+### Type 1: Nonuniform to Uniform
+
+Computes: `f[k] = sum_j c[j] * exp(i * isign * k * x[j])`
 
 ```python
-# 1D
-f = nufft1d1(x, c, n_modes, eps=1e-6, iflag=1)
+from nufftax import nufft1d1, nufft2d1, nufft3d1
 
-# 2D
-f = nufft2d1(x, y, c, n_modes, eps=1e-6, iflag=1)
-
-# 3D
-f = nufft3d1(x, y, z, c, n_modes, eps=1e-6, iflag=1)
+f = nufft1d1(x, c, n_modes, eps=1e-6, isign=1)
+f = nufft2d1(x, y, c, n_modes, eps=1e-6, isign=1)
+f = nufft3d1(x, y, z, c, n_modes, eps=1e-6, isign=1)
 ```
 
-Computes: `f[k] = Σⱼ c[j] · exp(i · iflag · k · x[j])`
+### Type 2: Uniform to Nonuniform
 
-### Type 2: Uniform → Nonuniform 🔄
+Computes: `c[j] = sum_k f[k] * exp(i * isign * k * x[j])`
 
 ```python
-# 1D
-c = nufft1d2(x, f, eps=1e-6, iflag=1)
+from nufftax import nufft1d2, nufft2d2, nufft3d2
 
-# 2D
-c = nufft2d2(x, y, f, eps=1e-6, iflag=1)
-
-# 3D
-c = nufft3d2(x, y, z, f, eps=1e-6, iflag=1)
+c = nufft1d2(x, f, eps=1e-6, isign=1)
+c = nufft2d2(x, y, f, eps=1e-6, isign=1)
+c = nufft3d2(x, y, z, f, eps=1e-6, isign=1)
 ```
 
-Computes: `c[j] = Σₖ f[k] · exp(i · iflag · k · x[j])`
+### Type 3: Nonuniform to Nonuniform
 
-### Parameters 🎛️
+Computes: `f[k] = sum_j c[j] * exp(i * isign * s[k] * x[j])`
+
+```python
+from nufftax import nufft1d3, nufft2d3, nufft3d3
+from nufftax import compute_type3_grid_size
+
+# Compute grid size from data bounds (required for JIT)
+n_modes = compute_type3_grid_size(x_extent, s_extent, eps=1e-6)
+
+f = nufft1d3(x, c, s, n_modes, eps=1e-6, isign=1)
+f = nufft2d3(x, y, c, s, t, n_modes, eps=1e-6, isign=1)
+f = nufft3d3(x, y, z, c, s, t, u, n_modes, eps=1e-6, isign=1)
+```
+
+### Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| `x, y, z` | Nonuniform points in [0, 2π) |
-| `c` | Complex strengths at nonuniform points |
+| `x, y, z` | Nonuniform source points in [-pi, pi) |
+| `s, t, u` | Nonuniform target frequencies (Type 3 only) |
+| `c` | Complex strengths at source points |
 | `f` | Fourier mode coefficients |
 | `n_modes` | Number of output modes (int or tuple) |
 | `eps` | Requested precision (1e-2 to 1e-14) |
-| `iflag` | Sign of exponent: +1 or -1 |
+| `isign` | Sign of exponent: +1 or -1 |
 
-## 🔧 How It Works
+## Algorithm
 
-nufftax implements the NUFFT using the standard approach:
+nufftax implements the NUFFT using:
 
-1. 📡 **Spreading/Interpolation** - Convolve with a compactly-supported kernel (exponential of semicircle)
-2. 🔢 **FFT** - Standard FFT on the oversampled grid
-3. ➗ **Deconvolution** - Divide by kernel Fourier coefficients
+1. **Spreading/Interpolation** - Convolution with the exponential of semicircle (ES) kernel
+2. **FFT** - Standard FFT on an oversampled grid (2x by default)
+3. **Deconvolution** - Division by kernel Fourier coefficients
 
-The magic is that everything is written in pure JAX, so autodiff propagates through naturally. ✨
+The ES kernel provides near-optimal accuracy for a given support width. All operations are implemented in pure JAX, enabling automatic differentiation through the entire transform.
 
-## ⚡ Performance
-
-It's fast enough for most research purposes. For production workloads with massive transforms, you might want [finufft](https://github.com/flatironinstitute/finufft) - but then you lose the autodiff superpowers. 🦸
-
-## 🧪 Running Tests
+## Running Tests
 
 ```bash
-# Install dev dependencies
 pip install -e ".[dev]"
-
-# Run tests
 pytest tests/ -v
-
-# With coverage
-pytest tests/ -v --cov=nufftax
 ```
 
-## 📄 License
+## License
 
 MIT
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-Algorithm based on the excellent [FINUFFT](https://github.com/flatironinstitute/finufft) library by the Flatiron Institute. 💙
+Algorithm based on [FINUFFT](https://github.com/flatironinstitute/finufft) by the Flatiron Institute.
