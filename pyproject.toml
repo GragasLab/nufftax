@@ -32,6 +32,7 @@ dev = [
     "pytest-cov",
     "finufft>=2.0",  # For comparison testing
     "numpy>=1.20",
+    "ruff>=0.4.0",
 ]
 
 [project.urls]
