@@ -60,8 +60,8 @@ def _next_smooth_even(n: int) -> int:
 
 
 def compute_type3_grid_size(
-    x_extent: float,
-    s_extent: float,
+    x_or_x_extent,
+    s_or_s_extent,
     eps: float = 1e-6,
     upsampfac: float = 2.0,
 ) -> int:
@@ -70,8 +70,10 @@ def compute_type3_grid_size(
     This helper function can be used to pre-compute grid sizes for JIT compilation.
 
     Args:
-        x_extent: Half-width of source points range, i.e., max(|x - center|)
-        s_extent: Half-width of target frequencies range, i.e., max(|s - center|)
+        x_or_x_extent: Either source points array (shape M,) OR half-width float.
+                       If array, computes extent as (max - min) / 2.
+        s_or_s_extent: Either target frequencies array (shape N,) OR half-width float.
+                       If array, computes extent as (max - min) / 2.
         eps: Requested precision
         upsampfac: Oversampling factor
 
@@ -82,13 +84,28 @@ def compute_type3_grid_size(
         >>> import jax.numpy as jnp
         >>> x = jnp.array([...])  # source points
         >>> s = jnp.array([...])  # target frequencies
-        >>> x_ext = (x.max() - x.min()) / 2
-        >>> s_ext = (s.max() - s.min()) / 2
-        >>> nf = compute_type3_grid_size(float(x_ext), float(s_ext), eps=1e-6)
+        >>> # Method 1: Pass arrays directly (recommended)
+        >>> nf = compute_type3_grid_size(x, s, eps=1e-6)
+        >>> # Method 2: Pass extents manually
+        >>> nf = compute_type3_grid_size((x.max()-x.min())/2, (s.max()-s.min())/2, eps=1e-6)
         >>> # Now use nf in JIT-compiled code:
-        >>> jit_fn = jax.jit(lambda x, c, s: nufft1d3(x, c, s, n_modes=nf), static_argnums=())
+        >>> f = nufft1d3(x, c, s, n_modes=nf, eps=1e-6)
     """
     import numpy as np
+
+    # Handle array inputs - convert to extents
+    x_arr = np.asarray(x_or_x_extent)
+    s_arr = np.asarray(s_or_s_extent)
+
+    if x_arr.ndim > 0:
+        x_extent = float((np.max(x_arr) - np.min(x_arr)) / 2)
+    else:
+        x_extent = float(x_arr)
+
+    if s_arr.ndim > 0:
+        s_extent = float((np.max(s_arr) - np.min(s_arr)) / 2)
+    else:
+        s_extent = float(s_arr)
 
     kernel_params = compute_kernel_params(eps, upsampfac)
     nspread = kernel_params.nspread
