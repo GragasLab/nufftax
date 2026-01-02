@@ -24,7 +24,11 @@ import jax.numpy as jnp
 
 
 def _build_deconv_factors_1d(phihat: jax.Array, n_modes: int, modeord: int = 0):
-    """Build deconvolution factor array for 1D case."""
+    """Build deconvolution factor array for 1D case.
+
+    Includes phase correction for the grid centering: x=0 maps to grid position nf/2,
+    which introduces a phase of (-1)^k that must be corrected.
+    """
     kmin = -n_modes // 2
     kmax = (n_modes - 1) // 2
 
@@ -34,11 +38,19 @@ def _build_deconv_factors_1d(phihat: jax.Array, n_modes: int, modeord: int = 0):
         factors_neg = 1.0 / phihat[1 : -kmin + 1][::-1]
         factors_pos = 1.0 / phihat[: kmax + 1]
         factors = jnp.concatenate([factors_neg, factors_pos])
+        # Phase correction: (-1)^k for k in [kmin, ..., kmax]
+        k = jnp.arange(kmin, kmax + 1)
     else:
         # FFT-style: [0, ..., kmax, kmin, ..., -1]
         factors_pos = 1.0 / phihat[: kmax + 1]
         factors_neg = 1.0 / phihat[1 : -kmin + 1][::-1]
         factors = jnp.concatenate([factors_pos, factors_neg])
+        # Phase correction: (-1)^k for k in [0, ..., kmax, kmin, ..., -1]
+        k = jnp.concatenate([jnp.arange(kmax + 1), jnp.arange(kmin, 0)])
+
+    # Apply phase correction: multiply by (-1)^k
+    phase_correction = jnp.where(k % 2 == 0, 1.0, -1.0)
+    factors = factors * phase_correction
 
     return factors
 

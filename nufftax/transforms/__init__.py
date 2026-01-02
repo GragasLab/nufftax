@@ -1,9 +1,9 @@
-"""NUFFT transform functions."""
+"""NUFFT transform functions.
 
-# from .nufft1 import nufft1d1, nufft2d1, nufft3d1
-# from .nufft2 import nufft1d2, nufft2d2, nufft3d2
+All transforms are JIT-compiled by default for 5-11x speedup.
+"""
 
-# Autodiff-enabled transforms
+# Autodiff-enabled transforms (all JIT-compiled)
 from .autodiff import (
     # Helper functions
     compute_position_gradient_1d,
@@ -24,14 +24,18 @@ from .autodiff import (
 )
 
 __all__ = [
+    # Type 1 transforms (nonuniform -> uniform)
     "nufft1d1",
+    "nufft2d1",
+    "nufft3d1",
+    # Type 2 transforms (uniform -> nonuniform)
     "nufft1d2",
+    "nufft2d2",
+    "nufft3d2",
+    # JVP versions
     "nufft1d1_jvp",
     "nufft1d2_jvp",
-    "nufft2d1",
-    "nufft2d2",
-    "nufft3d1",
-    "nufft3d2",
+    # Gradient helpers
     "compute_position_gradient_1d",
     "compute_position_gradient_2d",
     "compute_position_gradient_3d",

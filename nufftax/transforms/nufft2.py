@@ -9,6 +9,8 @@ Pipeline: deconvolve -> iFFT -> interpolate
 Reference: FINUFFT finufft_core.cpp
 """
 
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 
@@ -18,6 +20,7 @@ from ..core.spread import interp_1d, interp_2d, interp_3d
 from ..utils.grid import compute_grid_size
 
 
+@partial(jax.jit, static_argnames=("eps", "isign", "upsampfac", "modeord"))
 def nufft1d2(
     x: jax.Array,
     f: jax.Array,
@@ -82,6 +85,7 @@ def nufft1d2(
     return c
 
 
+@partial(jax.jit, static_argnames=("eps", "isign", "upsampfac", "modeord"))
 def nufft2d2(
     x: jax.Array,
     y: jax.Array,
@@ -146,6 +150,7 @@ def nufft2d2(
     return c
 
 
+@partial(jax.jit, static_argnames=("eps", "isign", "upsampfac", "modeord"))
 def nufft3d2(
     x: jax.Array,
     y: jax.Array,

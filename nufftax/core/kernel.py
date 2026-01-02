@@ -75,6 +75,49 @@ def es_kernel_derivative(z: jax.Array, beta: float, c: float) -> jax.Array:
     return jnp.where(valid, dphi, 0.0)
 
 
+def es_kernel_with_derivative(
+    z: jax.Array,
+    beta: float,
+    c: float,
+) -> tuple[jax.Array, jax.Array]:
+    """
+    Compute ES kernel and its derivative in a single pass.
+
+    This is more efficient than computing them separately as it shares
+    the sqrt and exp computations.
+
+    phi(z) = exp(beta * (sqrt(1 - c*z²) - 1))
+    dphi/dz = -beta * c * z / sqrt(1 - c*z²) * phi(z)
+
+    Args:
+        z: Points in kernel support, shape (...)
+        beta: Shape parameter
+        c: Normalization parameter
+
+    Returns:
+        (phi, dphi): Tuple of kernel values and derivatives
+    """
+    # Compute argument under sqrt
+    arg = 1.0 - c * z * z
+
+    # Mask for valid domain
+    valid = arg > 1e-14  # Slightly positive to avoid division issues
+    valid_for_phi = arg >= 0.0
+
+    # Compute shared intermediates
+    sqrt_arg = jnp.sqrt(jnp.maximum(arg, 1e-14))
+
+    # Compute kernel value
+    phi = jnp.exp(beta * (sqrt_arg - 1.0))
+    phi = jnp.where(valid_for_phi, phi, 0.0)
+
+    # Compute derivative: dphi/dz = -beta * c * z / sqrt_arg * phi
+    dphi = -beta * c * z / sqrt_arg * phi
+    dphi = jnp.where(valid, dphi, 0.0)
+
+    return phi, dphi
+
+
 def compute_kernel_params(
     tol: float,
     upsampfac: float = 2.0,
@@ -121,12 +164,13 @@ def compute_kernel_params(
     return KernelParams(nspread=nspread, beta=beta, c=c, upsampfac=upsampfac)
 
 
-@partial(jax.jit, static_argnums=(0, 1, 2, 3))
+@partial(jax.jit, static_argnums=(0, 1, 2, 3, 4))
 def kernel_fourier_series(
     nf: int,
     nspread: int,
     beta: float,
     c: float,
+    dtype: jnp.dtype | None = None,
 ) -> jax.Array:
     """
     Compute Fourier series coefficients of the kernel.
@@ -139,56 +183,36 @@ def kernel_fourier_series(
         nspread: Kernel width
         beta: Shape parameter
         c: Normalization parameter
+        dtype: Output dtype (default: float32 if x64 disabled, else float64)
 
     Returns:
         phihat: Fourier coefficients, shape (nf//2 + 1,)
     """
-    # Number of quadrature points
+    # Default dtype
+    if dtype is None:
+        dtype = jnp.float64 if jax.config.jax_enable_x64 else jnp.float32
+
+    # Number of quadrature points - use enough for accuracy
     J2 = nspread / 2.0
-    n_quad = int(2 + 3.0 * J2)
+    n_quad = max(int(4 + 3.0 * J2), 20)
 
-    # Gauss-Legendre quadrature nodes and weights on [0, 1]
-    # We'll use a simple approximation with uniform spacing for now
-    # TODO: Use proper Gauss-Legendre quadrature
-    t = jnp.linspace(0, 1, n_quad + 2)[1:-1]  # Exclude endpoints
-    w = jnp.ones(n_quad) / n_quad
-
-    # Map to [0, J/2]
-    z = t * J2
-    weights = w * J2
+    # Uniform quadrature over full kernel support [-J/2, J/2]
+    z = jnp.linspace(-J2, J2, n_quad, dtype=dtype)
+    dz = z[1] - z[0]  # Grid spacing
 
     # Evaluate kernel at quadrature points
-    f = es_kernel(z, beta, c) * weights
+    phi_vals = es_kernel(z, beta, c)
 
-    # Compute Fourier coefficients via phase winding
-    k = jnp.arange(nf // 2 + 1)
+    # Compute Fourier coefficients using trapezoidal rule
+    # phihat[k] = integral phi(z) * cos(2*pi*k*z/nf) dz
+    k = jnp.arange(nf // 2 + 1, dtype=dtype)
+    phase = jnp.array(2.0 * jnp.pi, dtype=dtype) * jnp.outer(k, z) / nf
 
-    # phihat[k] = 2 * sum_n f[n] * cos(2*pi*k*z[n]/nf)
-    # (factor of 2 for reflection symmetry)
-    phase = 2.0 * jnp.pi * jnp.outer(k, z) / nf
-    phihat = 2.0 * jnp.sum(f[None, :] * jnp.cos(phase), axis=1)
+    # Trapezoidal integration weights
+    weights = jnp.ones(n_quad, dtype=dtype) * dz
+    weights = weights.at[0].set(dz / 2)
+    weights = weights.at[-1].set(dz / 2)
+
+    phihat = jnp.sum(phi_vals[None, :] * weights[None, :] * jnp.cos(phase), axis=1)
 
     return phihat
-
-
-def evaluate_kernel_horner(
-    z: jax.Array,
-    coeffs: jax.Array,
-    nspread: int,
-) -> jax.Array:
-    """
-    Evaluate kernel using Horner polynomial approximation.
-
-    This is faster than direct kernel evaluation for JIT compilation.
-
-    Args:
-        z: Points in [-1, 1] (normalized kernel support)
-        coeffs: Horner coefficients, shape (nc, nspread)
-        nspread: Kernel width
-
-    Returns:
-        Kernel values at z
-    """
-    # TODO: Implement piecewise Horner evaluation
-    # For now, fall back to direct evaluation
-    raise NotImplementedError("Horner evaluation not yet implemented")
