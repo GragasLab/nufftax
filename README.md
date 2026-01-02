@@ -25,7 +25,7 @@
 ## Installation
 
 ```bash
-pip install nufftax
+uv pip install nufftax
 ```
 
 From source:
