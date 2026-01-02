@@ -12,7 +12,6 @@ Tests cover:
 - Adjoint relationship with Type 1
 """
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -26,7 +25,6 @@ from tests.conftest import (
     dft_nufft1d2,
     requires_finufft,
 )
-
 
 # ============================================================================
 # Test 1D Type 2 Against DFT Reference

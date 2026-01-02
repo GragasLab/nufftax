@@ -8,7 +8,6 @@ relationship instead, which is what matters for optimization.
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from nufftax.transforms import nufft1d1, nufft1d2, nufft2d1, nufft2d2, nufft3d1
 

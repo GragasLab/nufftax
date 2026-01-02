@@ -11,8 +11,6 @@ Tests cover:
 - JAX transformations (jit, vmap, grad)
 """
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
@@ -25,7 +23,6 @@ from tests.conftest import (
     dft_nufft1d1,
     requires_finufft,
 )
-
 
 # ============================================================================
 # Test 1D Type 1 Against DFT Reference

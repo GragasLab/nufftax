@@ -36,12 +36,12 @@ from .transforms.nufft2 import nufft1d2, nufft2d2, nufft3d2
 
 # Type 3 transforms (Nonuniform to Nonuniform)
 from .transforms.nufft3 import (
-    nufft1d3,
-    nufft2d3,
-    nufft3d3,
     compute_type3_grid_size,
     compute_type3_grid_sizes_2d,
     compute_type3_grid_sizes_3d,
+    nufft1d3,
+    nufft2d3,
+    nufft3d3,
 )
 
 __all__ = [

@@ -185,9 +185,7 @@ def _get_real_dtype(c: jax.Array):
         return c.dtype
 
 
-def _kernel_ft_at_point(
-    k: jax.Array, nspread: int, beta: float, c: float, dtype=None
-) -> jax.Array:
+def _kernel_ft_at_point(k: jax.Array, nspread: int, beta: float, c: float, dtype=None) -> jax.Array:
     """Evaluate Fourier transform of ES kernel at arbitrary frequency k.
 
     Uses quadrature to compute:
@@ -274,7 +272,6 @@ def nufft1d3(
     s_min, s_max = jnp.min(s), jnp.max(s)
 
     C = (x_min + x_max) / 2.0
-    X = jnp.maximum((x_max - x_min) / 2.0, 1e-10)
     D = (s_min + s_max) / 2.0
     S = jnp.maximum((s_max - s_min) / 2.0, 1e-10)
 
@@ -368,9 +365,7 @@ def nufft2d3(
     t_min, t_max = jnp.min(t), jnp.max(t)
 
     Cx = (x_min + x_max) / 2.0
-    Xx = jnp.maximum((x_max - x_min) / 2.0, 1e-10)
     Cy = (y_min + y_max) / 2.0
-    Xy = jnp.maximum((y_max - y_min) / 2.0, 1e-10)
     Ds = (s_min + s_max) / 2.0
     Ss = jnp.maximum((s_max - s_min) / 2.0, 1e-10)
     Dt = (t_min + t_max) / 2.0
@@ -403,9 +398,7 @@ def nufft2d3(
     t_normalized = jnp.mod(t_rescaled + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Inner Type 2
-    f = nufft2d2(
-        s_normalized, t_normalized, fw, eps=eps, isign=isign, upsampfac=upsampfac
-    )
+    f = nufft2d2(s_normalized, t_normalized, fw, eps=eps, isign=isign, upsampfac=upsampfac)
 
     # Deconvolution
     real_dtype = _get_real_dtype(c)
@@ -472,11 +465,8 @@ def nufft3d3(
     u_min, u_max = jnp.min(u), jnp.max(u)
 
     Cx = (x_min + x_max) / 2.0
-    Xx = jnp.maximum((x_max - x_min) / 2.0, 1e-10)
     Cy = (y_min + y_max) / 2.0
-    Xy = jnp.maximum((y_max - y_min) / 2.0, 1e-10)
     Cz = (z_min + z_max) / 2.0
-    Xz = jnp.maximum((z_max - z_min) / 2.0, 1e-10)
     Ds = (s_min + s_max) / 2.0
     Ss = jnp.maximum((s_max - s_min) / 2.0, 1e-10)
     Dt = (t_min + t_max) / 2.0
@@ -505,9 +495,7 @@ def nufft3d3(
     c_phased = c * prephase[None, :]
 
     # Spread
-    fw = spread_3d(
-        x_normalized, y_normalized, z_normalized, c_phased, nf1, nf2, nf3, kernel_params
-    )
+    fw = spread_3d(x_normalized, y_normalized, z_normalized, c_phased, nf1, nf2, nf3, kernel_params)
 
     # Rescale target frequencies
     s_rescaled = h1 * gamma1 * (s - Ds)
@@ -533,9 +521,7 @@ def nufft3d3(
     phi_hat1 = _kernel_ft_at_point(s_rescaled, nspread, beta, kc, dtype=real_dtype)
     phi_hat2 = _kernel_ft_at_point(t_rescaled, nspread, beta, kc, dtype=real_dtype)
     phi_hat3 = _kernel_ft_at_point(u_rescaled, nspread, beta, kc, dtype=real_dtype)
-    phase_correction = jnp.exp(
-        imag_unit * isign * ((s - Ds) * Cx + (t - Dt) * Cy + (u - Du) * Cz)
-    )
+    phase_correction = jnp.exp(imag_unit * isign * ((s - Ds) * Cx + (t - Dt) * Cy + (u - Du) * Cz))
     f = f * phase_correction[None, :] / (phi_hat1 * phi_hat2 * phi_hat3)[None, :]
 
     if not batched:
