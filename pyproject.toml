@@ -7,16 +7,15 @@ name = "nufftax"
 version = "0.1.0"
 description = "Pure JAX implementation of Non-Uniform FFT"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.12"
 authors = [
-    {name = "nufftax Authors"}
+    {name = "Geoffroy Oudoumanessah", email = "geoffroy.oudoumanesah@gmail.com"}
 ]
 keywords = ["jax", "fft", "nufft", "non-uniform", "fourier-transform", "autodiff"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
