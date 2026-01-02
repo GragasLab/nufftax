@@ -68,10 +68,10 @@ def nufft1d2(
     # Step 1: Deconvolve and pad to fine grid
     fw_hat = deconvolve_pad_1d(f, phihat, nf, modeord)
 
-    # Step 2: Inverse FFT
-    # The sign convention: isign < 0 means exp(-ikx), which corresponds to IFFT * nf
-    # isign > 0 means exp(+ikx), which corresponds to FFT
-    fw = jnp.fft.ifft(fw_hat, axis=-1) * nf if isign < 0 else jnp.fft.fft(fw_hat, axis=-1)
+    # Step 2: Transform to spatial domain
+    # The sign convention: isign < 0 means exp(-ikx), which corresponds to FFT
+    # isign > 0 means exp(+ikx), which corresponds to IFFT * nf
+    fw = jnp.fft.fft(fw_hat, axis=-1) if isign < 0 else jnp.fft.ifft(fw_hat, axis=-1) * nf
 
     # Step 3: Normalize x to [-pi, pi) for the interp function
     x_normalized = jnp.mod(x + jnp.pi, 2.0 * jnp.pi) - jnp.pi
@@ -134,8 +134,8 @@ def nufft2d2(
     # Step 1: Deconvolve and pad to fine grid
     fw_hat = deconvolve_pad_2d(f, phihat1, phihat2, nf1, nf2, modeord)
 
-    # Step 2: Inverse 2D FFT
-    fw = jnp.fft.ifft2(fw_hat, axes=(-2, -1)) * (nf1 * nf2) if isign < 0 else jnp.fft.fft2(fw_hat, axes=(-2, -1))
+    # Step 2: Transform to spatial domain
+    fw = jnp.fft.fft2(fw_hat, axes=(-2, -1)) if isign < 0 else jnp.fft.ifft2(fw_hat, axes=(-2, -1)) * (nf1 * nf2)
 
     # Step 3: Normalize coordinates to [-pi, pi)
     x_normalized = jnp.mod(x + jnp.pi, 2.0 * jnp.pi) - jnp.pi
@@ -203,11 +203,11 @@ def nufft3d2(
     # Step 1: Deconvolve and pad to fine grid
     fw_hat = deconvolve_pad_3d(f, phihat1, phihat2, phihat3, nf1, nf2, nf3, modeord)
 
-    # Step 2: Inverse 3D FFT
+    # Step 2: Transform to spatial domain
     if isign < 0:
-        fw = jnp.fft.ifftn(fw_hat, axes=(-3, -2, -1)) * (nf1 * nf2 * nf3)
-    else:
         fw = jnp.fft.fftn(fw_hat, axes=(-3, -2, -1))
+    else:
+        fw = jnp.fft.ifftn(fw_hat, axes=(-3, -2, -1)) * (nf1 * nf2 * nf3)
 
     # Step 3: Normalize coordinates to [-pi, pi)
     x_normalized = jnp.mod(x + jnp.pi, 2.0 * jnp.pi) - jnp.pi

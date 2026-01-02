@@ -34,6 +34,16 @@ from .transforms.nufft1 import nufft1d1, nufft2d1, nufft3d1
 # Type 2 transforms (Uniform to Nonuniform)
 from .transforms.nufft2 import nufft1d2, nufft2d2, nufft3d2
 
+# Type 3 transforms (Nonuniform to Nonuniform)
+from .transforms.nufft3 import (
+    nufft1d3,
+    nufft2d3,
+    nufft3d3,
+    compute_type3_grid_size,
+    compute_type3_grid_sizes_2d,
+    compute_type3_grid_sizes_3d,
+)
+
 __all__ = [
     # Type 1 transforms
     "nufft1d1",
@@ -43,4 +53,12 @@ __all__ = [
     "nufft1d2",
     "nufft2d2",
     "nufft3d2",
+    # Type 3 transforms
+    "nufft1d3",
+    "nufft2d3",
+    "nufft3d3",
+    # Type 3 JIT helpers
+    "compute_type3_grid_size",
+    "compute_type3_grid_sizes_2d",
+    "compute_type3_grid_sizes_3d",
 ]

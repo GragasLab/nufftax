@@ -44,6 +44,77 @@ def fold_rescale(x: jax.Array, n: int) -> jax.Array:
     return result * n
 
 
+def _prepare_batched_c(c: jax.Array) -> tuple[jax.Array, int, bool]:
+    """Prepare strengths array for batched processing.
+
+    Args:
+        c: Strengths array, shape (M,) or (n_trans, M)
+
+    Returns:
+        c_flat: Batched array, shape (n_trans, M)
+        n_trans: Number of transforms
+        is_batched: Whether input was already batched
+    """
+    if c.ndim == 2:
+        return c, c.shape[0], True
+    return c[None, :], 1, False
+
+
+def _prepare_batched_grid_1d(fw: jax.Array) -> tuple[jax.Array, int, int, bool]:
+    """Prepare 1D grid array for batched processing.
+
+    Args:
+        fw: Grid array, shape (nf,) or (n_trans, nf)
+
+    Returns:
+        fw_flat: Batched array, shape (n_trans, nf)
+        nf: Grid size
+        n_trans: Number of transforms
+        is_batched: Whether input was already batched
+    """
+    if fw.ndim == 2:
+        return fw, fw.shape[1], fw.shape[0], True
+    return fw[None, :], fw.shape[0], 1, False
+
+
+def _prepare_batched_grid_2d(fw: jax.Array) -> tuple[jax.Array, int, int, int, bool]:
+    """Prepare 2D grid array for batched processing.
+
+    Args:
+        fw: Grid array, shape (nf1, nf2) or (n_trans, nf1, nf2)
+
+    Returns:
+        fw_flat: Flattened batched array, shape (n_trans, nf1*nf2)
+        nf1, nf2: Grid sizes
+        n_trans: Number of transforms
+        is_batched: Whether input was already batched
+    """
+    if fw.ndim == 3:
+        n_trans, nf1, nf2 = fw.shape
+        return fw.reshape(n_trans, nf1 * nf2), nf1, nf2, n_trans, True
+    nf1, nf2 = fw.shape
+    return fw.reshape(1, nf1 * nf2), nf1, nf2, 1, False
+
+
+def _prepare_batched_grid_3d(fw: jax.Array) -> tuple[jax.Array, int, int, int, int, bool]:
+    """Prepare 3D grid array for batched processing.
+
+    Args:
+        fw: Grid array, shape (nf1, nf2, nf3) or (n_trans, nf1, nf2, nf3)
+
+    Returns:
+        fw_flat: Flattened batched array, shape (n_trans, nf1*nf2*nf3)
+        nf1, nf2, nf3: Grid sizes
+        n_trans: Number of transforms
+        is_batched: Whether input was already batched
+    """
+    if fw.ndim == 4:
+        n_trans, nf1, nf2, nf3 = fw.shape
+        return fw.reshape(n_trans, nf1 * nf2 * nf3), nf1, nf2, nf3, n_trans, True
+    nf1, nf2, nf3 = fw.shape
+    return fw.reshape(1, nf1 * nf2 * nf3), nf1, nf2, nf3, 1, False
+
+
 def compute_kernel_weights_1d(
     x_scaled: jax.Array,
     nf: int,
@@ -167,14 +238,7 @@ def spread_1d_impl(
     Returns:
         fw: Fine grid values, shape (nf,) or (n_trans, nf)
     """
-    # Handle batched case
-    is_batched = c.ndim == 2
-    if is_batched:
-        n_trans = c.shape[0]
-        c_flat = c  # (n_trans, M)
-    else:
-        n_trans = 1
-        c_flat = c[None, :]  # (1, M)
+    c_flat, n_trans, is_batched = _prepare_batched_c(c)
 
     # Scale coordinates to grid units
     x_scaled = fold_rescale(x, nf)
@@ -227,17 +291,7 @@ def interp_1d_impl(
     Returns:
         c: Interpolated values at nonuniform points, shape (M,) or (n_trans, M)
     """
-    # Handle batched case
-    is_batched = fw.ndim == 2
-    if is_batched:
-        fw.shape[0]
-        nf = fw.shape[1]
-        fw_flat = fw  # (n_trans, nf)
-    else:
-        nf = fw.shape[0]
-        fw_flat = fw[None, :]  # (1, nf)
-
-    x.shape[0]
+    fw_flat, nf, _, is_batched = _prepare_batched_grid_1d(fw)
 
     # Scale coordinates to grid units
     x_scaled = fold_rescale(x, nf)
@@ -333,15 +387,7 @@ def spread_2d_impl(
     Returns:
         fw: Fine grid values, shape (nf1, nf2) or (n_trans, nf1, nf2)
     """
-    is_batched = c.ndim == 2
-    if is_batched:
-        n_trans = c.shape[0]
-        c_flat = c
-    else:
-        n_trans = 1
-        c_flat = c[None, :]
-
-    x.shape[0]
+    c_flat, n_trans, is_batched = _prepare_batched_c(c)
 
     # Scale coordinates
     x_scaled = fold_rescale(x, nf1)
@@ -400,16 +446,7 @@ def interp_2d_impl(
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    is_batched = fw.ndim == 3
-    if is_batched:
-        n_trans = fw.shape[0]
-        nf1, nf2 = fw.shape[1], fw.shape[2]
-        fw_flat = fw.reshape(n_trans, nf1 * nf2)
-    else:
-        n_trans = 1
-        nf1, nf2 = fw.shape[0], fw.shape[1]
-        fw_flat = fw.reshape(1, nf1 * nf2)
-
+    fw_flat, nf1, nf2, _, is_batched = _prepare_batched_grid_2d(fw)
     M = x.shape[0]
 
     # Scale coordinates
@@ -426,7 +463,7 @@ def interp_2d_impl(
     # Gather values
     # fw_gathered[t, j, dy, dx] = fw_flat[t, indices_2d[j, dy, dx]]
     indices_flat = indices_2d.ravel()
-    fw_gathered = fw_flat[:, indices_flat].reshape(n_trans, M, kernel_params.nspread, kernel_params.nspread)
+    fw_gathered = fw_flat[:, indices_flat].reshape(-1, M, kernel_params.nspread, kernel_params.nspread)
 
     # Apply weights and sum
     c = jnp.sum(fw_gathered * weights_2d[None, :, :, :], axis=(-2, -1))
@@ -513,15 +550,7 @@ def spread_3d_impl(
     Returns:
         fw: Fine grid values, shape (nf1, nf2, nf3) or (n_trans, nf1, nf2, nf3)
     """
-    is_batched = c.ndim == 2
-    if is_batched:
-        n_trans = c.shape[0]
-        c_flat = c
-    else:
-        n_trans = 1
-        c_flat = c[None, :]
-
-    x.shape[0]
+    c_flat, n_trans, is_batched = _prepare_batched_c(c)
 
     # Scale coordinates
     x_scaled = fold_rescale(x, nf1)
@@ -582,16 +611,7 @@ def interp_3d_impl(
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    is_batched = fw.ndim == 4
-    if is_batched:
-        n_trans = fw.shape[0]
-        nf1, nf2, nf3 = fw.shape[1], fw.shape[2], fw.shape[3]
-        fw_flat = fw.reshape(n_trans, nf1 * nf2 * nf3)
-    else:
-        n_trans = 1
-        nf1, nf2, nf3 = fw.shape[0], fw.shape[1], fw.shape[2]
-        fw_flat = fw.reshape(1, nf1 * nf2 * nf3)
-
+    fw_flat, nf1, nf2, nf3, _, is_batched = _prepare_batched_grid_3d(fw)
     M = x.shape[0]
     nspread = kernel_params.nspread
 
@@ -613,7 +633,7 @@ def interp_3d_impl(
 
     # Gather values
     indices_flat = indices_3d.ravel()
-    fw_gathered = fw_flat[:, indices_flat].reshape(n_trans, M, nspread, nspread, nspread)
+    fw_gathered = fw_flat[:, indices_flat].reshape(-1, M, nspread, nspread, nspread)
 
     # Apply weights and sum
     c = jnp.sum(fw_gathered * weights_3d[None, :, :, :, :], axis=(-3, -2, -1))
@@ -696,16 +716,8 @@ def _spread_1d_grad_x(
     The gradient involves the kernel derivative:
         dx[j] = sum_k g[k] * c[j] * dphi/dx(k - x[j] * nf / (2*pi))
     """
-    is_batched = c.ndim == 2
-    if is_batched:
-        c.shape[0]
-        c_flat = c
-        g_flat = g
-    else:
-        c_flat = c[None, :]
-        g_flat = g[None, :]
-
-    x.shape[0]
+    c_flat, _, _ = _prepare_batched_c(c)
+    g_flat, _, _, _ = _prepare_batched_grid_1d(g)
 
     # Scale coordinates
     x_scaled = fold_rescale(x, nf)
@@ -795,16 +807,8 @@ def _interp_1d_grad_x(
     The gradient involves the kernel derivative:
         dx[j] = sum_k fw[k] * dphi/dx(k - x[j] * nf / (2*pi)) * g[j]
     """
-    is_batched = fw.ndim == 2
-    if is_batched:
-        fw.shape[0]
-        fw_flat = fw
-        g_flat = g
-    else:
-        fw_flat = fw[None, :]
-        g_flat = g[None, :]
-
-    x.shape[0]
+    fw_flat, _, _, _ = _prepare_batched_grid_1d(fw)
+    g_flat, _, _ = _prepare_batched_c(g)
 
     # Scale coordinates
     x_scaled = fold_rescale(x, nf)
@@ -878,16 +882,8 @@ spread_2d.defvjp(spread_2d_fwd, spread_2d_bwd)
 
 def _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel_params):
     """Compute gradients of spread_2d w.r.t. x and y."""
-    is_batched = c.ndim == 2
-    if is_batched:
-        n_trans = c.shape[0]
-        c_flat = c
-        g_flat = g.reshape(n_trans, nf1 * nf2)
-    else:
-        n_trans = 1
-        c_flat = c[None, :]
-        g_flat = g.reshape(1, nf1 * nf2)
-
+    c_flat, _, _ = _prepare_batched_c(c)
+    g_flat, _, _, _, _ = _prepare_batched_grid_2d(g)
     M = x.shape[0]
     nspread = kernel_params.nspread
     beta = kernel_params.beta
@@ -921,7 +917,7 @@ def _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel_params):
     indices_flat = indices_2d.ravel()
 
     # Gather g values
-    g_gathered = g_flat[:, indices_flat].reshape(n_trans, M, nspread, nspread)
+    g_gathered = g_flat[:, indices_flat].reshape(-1, M, nspread, nspread)
 
     # For dx: use dweights_x, weights_y
     weights_2d_dx = weights_y[:, :, None] * dweights_x[:, None, :]
@@ -985,16 +981,8 @@ interp_2d.defvjp(interp_2d_fwd, interp_2d_bwd)
 
 def _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel_params):
     """Compute gradients of interp_2d w.r.t. x and y."""
-    is_batched = fw.ndim == 3
-    if is_batched:
-        n_trans = fw.shape[0]
-        fw_flat = fw.reshape(n_trans, nf1 * nf2)
-        g_flat = g
-    else:
-        n_trans = 1
-        fw_flat = fw.reshape(1, nf1 * nf2)
-        g_flat = g[None, :]
-
+    fw_flat, _, _, _, _ = _prepare_batched_grid_2d(fw)
+    g_flat, _, _ = _prepare_batched_c(g)
     M = x.shape[0]
     nspread = kernel_params.nspread
     beta = kernel_params.beta
@@ -1027,7 +1015,7 @@ def _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel_params):
     indices_flat = indices_2d.ravel()
 
     # Gather fw values
-    fw_gathered = fw_flat[:, indices_flat].reshape(n_trans, M, nspread, nspread)
+    fw_gathered = fw_flat[:, indices_flat].reshape(-1, M, nspread, nspread)
 
     # For dx
     weights_2d_dx = weights_y[:, :, None] * dweights_x[:, None, :]
@@ -1097,16 +1085,8 @@ spread_3d.defvjp(spread_3d_fwd, spread_3d_bwd)
 
 def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
     """Compute gradients of spread_3d w.r.t. x, y, z."""
-    is_batched = c.ndim == 2
-    if is_batched:
-        n_trans = c.shape[0]
-        c_flat = c
-        g_flat = g.reshape(n_trans, nf1 * nf2 * nf3)
-    else:
-        n_trans = 1
-        c_flat = c[None, :]
-        g_flat = g.reshape(1, nf1 * nf2 * nf3)
-
+    c_flat, _, _ = _prepare_batched_c(c)
+    g_flat, _, _, _, _, _ = _prepare_batched_grid_3d(g)
     M = x.shape[0]
     nspread = kernel_params.nspread
     beta = kernel_params.beta
@@ -1150,7 +1130,7 @@ def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
     indices_flat = indices_3d.ravel()
 
     # Gather g values
-    g_gathered = g_flat[:, indices_flat].reshape(n_trans, M, nspread, nspread, nspread)
+    g_gathered = g_flat[:, indices_flat].reshape(-1, M, nspread, nspread, nspread)
 
     # For dx
     weights_3d_dx = weights_z[:, :, None, None] * weights_y[:, None, :, None] * dweights_x[:, None, None, :]
@@ -1221,16 +1201,8 @@ interp_3d.defvjp(interp_3d_fwd, interp_3d_bwd)
 
 def _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel_params):
     """Compute gradients of interp_3d w.r.t. x, y, z."""
-    is_batched = fw.ndim == 4
-    if is_batched:
-        n_trans = fw.shape[0]
-        fw_flat = fw.reshape(n_trans, nf1 * nf2 * nf3)
-        g_flat = g
-    else:
-        n_trans = 1
-        fw_flat = fw.reshape(1, nf1 * nf2 * nf3)
-        g_flat = g[None, :]
-
+    fw_flat, _, _, _, _, _ = _prepare_batched_grid_3d(fw)
+    g_flat, _, _ = _prepare_batched_c(g)
     M = x.shape[0]
     nspread = kernel_params.nspread
     beta = kernel_params.beta
@@ -1274,7 +1246,7 @@ def _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel_params):
     indices_flat = indices_3d.ravel()
 
     # Gather fw values
-    fw_gathered = fw_flat[:, indices_flat].reshape(n_trans, M, nspread, nspread, nspread)
+    fw_gathered = fw_flat[:, indices_flat].reshape(-1, M, nspread, nspread, nspread)
 
     # For dx
     weights_3d_dx = weights_z[:, :, None, None] * weights_y[:, None, :, None] * dweights_x[:, None, None, :]

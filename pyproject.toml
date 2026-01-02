@@ -51,6 +51,12 @@ addopts = "-v --tb=short"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+filterwarnings = [
+    # Suppress JAX scatter dtype promotion warning - occurs when x64 mode is enabled globally
+    # (by test_nufft3.py for FINUFFT comparison) and float32 computations mix with float64 constants.
+    # This is a FutureWarning and doesn't affect correctness; dtype promotion is handled correctly.
+    "ignore:scatter inputs have incompatible types:FutureWarning",
+]
 
 [tool.ruff]
 line-length = 100

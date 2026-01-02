@@ -37,18 +37,25 @@ def es_kernel(z: jax.Array, beta: float, c: float) -> jax.Array:
     Returns:
         Kernel values, same shape as z
     """
+    # Cast all constants to input dtype to prevent float64 promotion
+    dtype = z.dtype
+    beta = jnp.array(beta, dtype=dtype)
+    c = jnp.array(c, dtype=dtype)
+    one = jnp.array(1.0, dtype=dtype)
+    zero = jnp.array(0.0, dtype=dtype)
+
     # Compute argument under sqrt
-    arg = 1.0 - c * z * z
+    arg = one - c * z * z
 
     # Mask for valid domain (arg >= 0)
-    valid = arg >= 0.0
+    valid = arg >= zero
 
     # Compute kernel where valid
-    sqrt_arg = jnp.sqrt(jnp.maximum(arg, 0.0))
-    result = jnp.exp(beta * (sqrt_arg - 1.0))
+    sqrt_arg = jnp.sqrt(jnp.maximum(arg, zero))
+    result = jnp.exp(beta * (sqrt_arg - one))
 
     # Zero outside support
-    return jnp.where(valid, result, 0.0)
+    return jnp.where(valid, result, zero)
 
 
 def es_kernel_derivative(z: jax.Array, beta: float, c: float) -> jax.Array:
@@ -65,14 +72,22 @@ def es_kernel_derivative(z: jax.Array, beta: float, c: float) -> jax.Array:
     Returns:
         Kernel derivative values
     """
-    arg = 1.0 - c * z * z
-    valid = arg > 1e-14  # Avoid division by zero
+    # Cast all constants to input dtype to prevent float64 promotion
+    dtype = z.dtype
+    beta = jnp.array(beta, dtype=dtype)
+    c = jnp.array(c, dtype=dtype)
+    one = jnp.array(1.0, dtype=dtype)
+    zero = jnp.array(0.0, dtype=dtype)
+    eps = jnp.array(1e-14, dtype=dtype)
 
-    sqrt_arg = jnp.sqrt(jnp.maximum(arg, 1e-14))
-    phi = jnp.exp(beta * (sqrt_arg - 1.0))
+    arg = one - c * z * z
+    valid = arg > eps  # Avoid division by zero
+
+    sqrt_arg = jnp.sqrt(jnp.maximum(arg, eps))
+    phi = jnp.exp(beta * (sqrt_arg - one))
     dphi = -beta * c * z / sqrt_arg * phi
 
-    return jnp.where(valid, dphi, 0.0)
+    return jnp.where(valid, dphi, zero)
 
 
 def es_kernel_with_derivative(
@@ -97,23 +112,31 @@ def es_kernel_with_derivative(
     Returns:
         (phi, dphi): Tuple of kernel values and derivatives
     """
+    # Cast all constants to input dtype to prevent float64 promotion
+    dtype = z.dtype
+    beta = jnp.array(beta, dtype=dtype)
+    c = jnp.array(c, dtype=dtype)
+    one = jnp.array(1.0, dtype=dtype)
+    zero = jnp.array(0.0, dtype=dtype)
+    eps = jnp.array(1e-14, dtype=dtype)
+
     # Compute argument under sqrt
-    arg = 1.0 - c * z * z
+    arg = one - c * z * z
 
     # Mask for valid domain
-    valid = arg > 1e-14  # Slightly positive to avoid division issues
-    valid_for_phi = arg >= 0.0
+    valid = arg > eps  # Slightly positive to avoid division issues
+    valid_for_phi = arg >= zero
 
     # Compute shared intermediates
-    sqrt_arg = jnp.sqrt(jnp.maximum(arg, 1e-14))
+    sqrt_arg = jnp.sqrt(jnp.maximum(arg, eps))
 
     # Compute kernel value
-    phi = jnp.exp(beta * (sqrt_arg - 1.0))
-    phi = jnp.where(valid_for_phi, phi, 0.0)
+    phi = jnp.exp(beta * (sqrt_arg - one))
+    phi = jnp.where(valid_for_phi, phi, zero)
 
     # Compute derivative: dphi/dz = -beta * c * z / sqrt_arg * phi
     dphi = -beta * c * z / sqrt_arg * phi
-    dphi = jnp.where(valid, dphi, 0.0)
+    dphi = jnp.where(valid, dphi, zero)
 
     return phi, dphi
 

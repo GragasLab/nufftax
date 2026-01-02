@@ -170,37 +170,44 @@ class TestGradient3D:
 class TestGradientFiniteDifference:
     """Verify gradients using finite differences."""
 
-    @pytest.mark.skipif(not jax.config.jax_enable_x64, reason="Finite difference tests require x64 precision")
     def test_grad_c_finite_diff_1d(self):
-        """Verify gradient w.r.t. c using finite differences."""
-        M, N = 20, 16  # Small for finite diff
-        key = jax.random.PRNGKey(42)
-        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
-        c = c.astype(jnp.complex128)  # Use float64 for finite diff accuracy
-        x = x.astype(jnp.float64)
+        """Verify gradient w.r.t. c using finite differences.
 
-        def loss(c):
-            result = nufft1d1(x, c, N, eps=1e-10)
-            return jnp.sum(jnp.abs(result) ** 2).real
+        For a real loss L of complex variable c, the gradient for steepest descent is:
+        grad = ∂L/∂(Re c) + i * ∂L/∂(Im c)
 
-        # Analytical gradient
-        grad_c = jax.grad(loss)(c)
+        This is what finite differences compute and what our VJP now returns.
+        """
+        # Enable x64 for this test (finite differences need high precision)
+        with jax.enable_x64(True):
+            M, N = 20, 16  # Small for finite diff
+            key = jax.random.PRNGKey(42)
+            x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
+            c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+            c = c.astype(jnp.complex128)  # Use float64 for finite diff accuracy
+            x = x.astype(jnp.float64)
 
-        # Finite difference approximation (for real part)
-        eps = 1e-6
-        for i in range(min(3, M)):  # Check first 3 components
-            c_plus = c.at[i].add(eps)
-            c_minus = c.at[i].add(-eps)
-            fd_grad_real = (loss(c_plus) - loss(c_minus)) / (2 * eps)
+            def loss(c):
+                result = nufft1d1(x, c, N, eps=1e-10)
+                return jnp.sum(jnp.abs(result) ** 2).real
 
-            c_plus_i = c.at[i].add(1j * eps)
-            c_minus_i = c.at[i].add(-1j * eps)
-            fd_grad_imag = (loss(c_plus_i) - loss(c_minus_i)) / (2 * eps)
+            # Analytical gradient
+            grad_c = jax.grad(loss)(c)
 
-            # Wirtinger derivative: grad = 2 * (d_real + i * d_imag)
-            expected = fd_grad_real + 1j * fd_grad_imag
+            # Finite difference approximation
+            eps = 1e-6
+            for i in range(min(3, M)):  # Check first 3 components
+                c_plus = c.at[i].add(eps)
+                c_minus = c.at[i].add(-eps)
+                fd_grad_real = (loss(c_plus) - loss(c_minus)) / (2 * eps)
 
-            np.testing.assert_allclose(
-                grad_c[i], expected, rtol=1e-4, atol=1e-6, err_msg=f"Gradient mismatch at index {i}"
-            )
+                c_plus_i = c.at[i].add(1j * eps)
+                c_minus_i = c.at[i].add(-1j * eps)
+                fd_grad_imag = (loss(c_plus_i) - loss(c_minus_i)) / (2 * eps)
+
+                # Standard gradient: ∂L/∂(Re c) + i * ∂L/∂(Im c)
+                expected = fd_grad_real + 1j * fd_grad_imag
+
+                np.testing.assert_allclose(
+                    grad_c[i], expected, rtol=1e-4, atol=1e-6, err_msg=f"Gradient mismatch at index {i}"
+                )

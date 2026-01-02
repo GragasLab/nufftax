@@ -23,6 +23,9 @@ from .autodiff import (
     nufft3d2,
 )
 
+# Type 3 transforms (nonuniform -> nonuniform)
+from .nufft3 import nufft1d3, nufft2d3, nufft3d3
+
 __all__ = [
     # Type 1 transforms (nonuniform -> uniform)
     "nufft1d1",
@@ -32,6 +35,10 @@ __all__ = [
     "nufft1d2",
     "nufft2d2",
     "nufft3d2",
+    # Type 3 transforms (nonuniform -> nonuniform)
+    "nufft1d3",
+    "nufft2d3",
+    "nufft3d3",
     # JVP versions
     "nufft1d1_jvp",
     "nufft1d2_jvp",

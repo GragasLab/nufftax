@@ -79,22 +79,23 @@ class TestDtypeAccuracy:
         rel_error = jnp.linalg.norm(result - expected) / jnp.linalg.norm(expected)
         assert rel_error < 1e-4, f"Relative error {rel_error} exceeds tolerance 1e-4"
 
-    @pytest.mark.skipif(not jax.config.jax_enable_x64, reason="float64 tests require x64 precision")
     def test_nufft1d1_accuracy_float64(self):
         """Test accuracy with float64/complex128."""
-        M, N = 50, 32  # Small for direct computation
-        key = jax.random.PRNGKey(42)
-        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(jnp.float64) + 1j * jax.random.normal(
-            jax.random.PRNGKey(44), (M,)
-        ).astype(jnp.float64)
-        c = c.astype(jnp.complex128)
+        # Enable x64 for this test
+        with jax.enable_x64(True):
+            M, N = 50, 32  # Small for direct computation
+            key = jax.random.PRNGKey(42)
+            x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(jnp.float64) + 1j * jax.random.normal(
+                jax.random.PRNGKey(44), (M,)
+            ).astype(jnp.float64)
+            c = c.astype(jnp.complex128)
 
-        result = nufft1d1(x, c, N, eps=1e-6)
-        expected = self._direct_nufft1d1(x, c, N)
+            result = nufft1d1(x, c, N, eps=1e-6)
+            expected = self._direct_nufft1d1(x, c, N)
 
-        rel_error = jnp.linalg.norm(result - expected) / jnp.linalg.norm(expected)
-        assert rel_error < 1e-5, f"Relative error {rel_error} exceeds tolerance 1e-5"
+            rel_error = jnp.linalg.norm(result - expected) / jnp.linalg.norm(expected)
+            assert rel_error < 1e-5, f"Relative error {rel_error} exceeds tolerance 1e-5"
 
     @pytest.mark.parametrize("real_dtype", [jnp.float16, jnp.bfloat16])
     def test_low_precision_runs(self, real_dtype):
