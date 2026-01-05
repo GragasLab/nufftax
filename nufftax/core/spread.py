@@ -399,7 +399,9 @@ def spread_2d_impl(
     y_scaled = fold_rescale(y, nf2)
 
     # Get kernel weights and indices for each dimension
-    indices_x, indices_y, weights_x, weights_y = compute_kernel_weights_2d(x_scaled, y_scaled, nf1, nf2, kernel_params)
+    indices_x, indices_y, weights_x, weights_y = compute_kernel_weights_2d(
+        x_scaled, y_scaled, nf1, nf2, kernel_params
+    )
 
     # Initialize output grid (nf2, nf1) to match indexing: indices_y*nf1 + indices_x
     fw = jnp.zeros((n_trans, nf2, nf1), dtype=c.dtype)
@@ -414,7 +416,9 @@ def spread_2d_impl(
     weights_2d = weights_y[:, :, None] * weights_x[:, None, :]  # (M, nspread, nspread)
 
     # Weighted contributions
-    weighted_c = c_flat[:, :, None, None] * weights_2d[None, :, :, :]  # (n_trans, M, nspread, nspread)
+    weighted_c = (
+        c_flat[:, :, None, None] * weights_2d[None, :, :, :]
+    )  # (n_trans, M, nspread, nspread)
 
     # Flatten for segment_sum
     indices_flat = indices_2d.ravel()  # (M * nspread * nspread,)
@@ -459,7 +463,9 @@ def interp_2d_impl(
     y_scaled = fold_rescale(y, nf2)
 
     # Get kernel weights and indices
-    indices_x, indices_y, weights_x, weights_y = compute_kernel_weights_2d(x_scaled, y_scaled, nf1, nf2, kernel_params)
+    indices_x, indices_y, weights_x, weights_y = compute_kernel_weights_2d(
+        x_scaled, y_scaled, nf1, nf2, kernel_params
+    )
 
     # Compute 2D indices and weights
     indices_2d = indices_y[:, :, None] * nf1 + indices_x[:, None, :]  # (M, nspread, nspread)
@@ -468,7 +474,9 @@ def interp_2d_impl(
     # Gather values
     # fw_gathered[t, j, dy, dx] = fw_flat[t, indices_2d[j, dy, dx]]
     indices_flat = indices_2d.ravel()
-    fw_gathered = fw_flat[:, indices_flat].reshape(-1, M, kernel_params.nspread, kernel_params.nspread)
+    fw_gathered = fw_flat[:, indices_flat].reshape(
+        -1, M, kernel_params.nspread, kernel_params.nspread
+    )
 
     # Apply weights and sum
     c = jnp.sum(fw_gathered * weights_2d[None, :, :, :], axis=(-2, -1))
@@ -570,7 +578,9 @@ def spread_3d_impl(
     # Compute 3D linear indices
     # indices_3d[j, dz, dy, dx] = indices_z[j,dz]*nf1*nf2 + indices_y[j,dy]*nf1 + indices_x[j,dx]
     indices_3d = (
-        indices_z[:, :, None, None] * (nf1 * nf2) + indices_y[:, None, :, None] * nf1 + indices_x[:, None, None, :]
+        indices_z[:, :, None, None] * (nf1 * nf2)
+        + indices_y[:, None, :, None] * nf1
+        + indices_x[:, None, None, :]
     )  # (M, nspread, nspread, nspread)
 
     # Compute 3D weights as outer product
@@ -632,9 +642,13 @@ def interp_3d_impl(
 
     # Compute 3D indices and weights
     indices_3d = (
-        indices_z[:, :, None, None] * (nf1 * nf2) + indices_y[:, None, :, None] * nf1 + indices_x[:, None, None, :]
+        indices_z[:, :, None, None] * (nf1 * nf2)
+        + indices_y[:, None, :, None] * nf1
+        + indices_x[:, None, None, :]
     )
-    weights_3d = weights_z[:, :, None, None] * weights_y[:, None, :, None] * weights_x[:, None, None, :]
+    weights_3d = (
+        weights_z[:, :, None, None] * weights_y[:, None, :, None] * weights_x[:, None, None, :]
+    )
 
     # Gather values
     indices_flat = indices_3d.ravel()
@@ -1130,7 +1144,9 @@ def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
 
     # 3D indices
     indices_3d = (
-        indices_z[:, :, None, None] * (nf1 * nf2) + indices_y[:, None, :, None] * nf1 + indices_x[:, None, None, :]
+        indices_z[:, :, None, None] * (nf1 * nf2)
+        + indices_y[:, None, :, None] * nf1
+        + indices_x[:, None, None, :]
     )
     indices_flat = indices_3d.ravel()
 
@@ -1138,19 +1154,25 @@ def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
     g_gathered = g_flat[:, indices_flat].reshape(-1, M, nspread, nspread, nspread)
 
     # For dx
-    weights_3d_dx = weights_z[:, :, None, None] * weights_y[:, None, :, None] * dweights_x[:, None, None, :]
+    weights_3d_dx = (
+        weights_z[:, :, None, None] * weights_y[:, None, :, None] * dweights_x[:, None, None, :]
+    )
     contrib_dx = jnp.sum(g_gathered * weights_3d_dx[None, :, :, :, :], axis=(-3, -2, -1))
     dx_per_trans = jnp.real(jnp.conj(c_flat) * contrib_dx)
     dx = jnp.sum(dx_per_trans, axis=0)
 
     # For dy
-    weights_3d_dy = weights_z[:, :, None, None] * dweights_y[:, None, :, None] * weights_x[:, None, None, :]
+    weights_3d_dy = (
+        weights_z[:, :, None, None] * dweights_y[:, None, :, None] * weights_x[:, None, None, :]
+    )
     contrib_dy = jnp.sum(g_gathered * weights_3d_dy[None, :, :, :, :], axis=(-3, -2, -1))
     dy_per_trans = jnp.real(jnp.conj(c_flat) * contrib_dy)
     dy = jnp.sum(dy_per_trans, axis=0)
 
     # For dz
-    weights_3d_dz = dweights_z[:, :, None, None] * weights_y[:, None, :, None] * weights_x[:, None, None, :]
+    weights_3d_dz = (
+        dweights_z[:, :, None, None] * weights_y[:, None, :, None] * weights_x[:, None, None, :]
+    )
     contrib_dz = jnp.sum(g_gathered * weights_3d_dz[None, :, :, :, :], axis=(-3, -2, -1))
     dz_per_trans = jnp.real(jnp.conj(c_flat) * contrib_dz)
     dz = jnp.sum(dz_per_trans, axis=0)
@@ -1246,7 +1268,9 @@ def _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel_params):
 
     # 3D indices
     indices_3d = (
-        indices_z[:, :, None, None] * (nf1 * nf2) + indices_y[:, None, :, None] * nf1 + indices_x[:, None, None, :]
+        indices_z[:, :, None, None] * (nf1 * nf2)
+        + indices_y[:, None, :, None] * nf1
+        + indices_x[:, None, None, :]
     )
     indices_flat = indices_3d.ravel()
 
@@ -1254,19 +1278,25 @@ def _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel_params):
     fw_gathered = fw_flat[:, indices_flat].reshape(-1, M, nspread, nspread, nspread)
 
     # For dx
-    weights_3d_dx = weights_z[:, :, None, None] * weights_y[:, None, :, None] * dweights_x[:, None, None, :]
+    weights_3d_dx = (
+        weights_z[:, :, None, None] * weights_y[:, None, :, None] * dweights_x[:, None, None, :]
+    )
     dc_dx = jnp.sum(fw_gathered * weights_3d_dx[None, :, :, :, :], axis=(-3, -2, -1))
     dx_per_trans = jnp.real(jnp.conj(g_flat) * dc_dx)
     dx = jnp.sum(dx_per_trans, axis=0)
 
     # For dy
-    weights_3d_dy = weights_z[:, :, None, None] * dweights_y[:, None, :, None] * weights_x[:, None, None, :]
+    weights_3d_dy = (
+        weights_z[:, :, None, None] * dweights_y[:, None, :, None] * weights_x[:, None, None, :]
+    )
     dc_dy = jnp.sum(fw_gathered * weights_3d_dy[None, :, :, :, :], axis=(-3, -2, -1))
     dy_per_trans = jnp.real(jnp.conj(g_flat) * dc_dy)
     dy = jnp.sum(dy_per_trans, axis=0)
 
     # For dz
-    weights_3d_dz = dweights_z[:, :, None, None] * weights_y[:, None, :, None] * weights_x[:, None, None, :]
+    weights_3d_dz = (
+        dweights_z[:, :, None, None] * weights_y[:, None, :, None] * weights_x[:, None, None, :]
+    )
     dc_dz = jnp.sum(fw_gathered * weights_3d_dz[None, :, :, :, :], axis=(-3, -2, -1))
     dz_per_trans = jnp.real(jnp.conj(g_flat) * dc_dz)
     dz = jnp.sum(dz_per_trans, axis=0)

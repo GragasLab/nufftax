@@ -34,7 +34,14 @@ The NUFFT bridges this gap, and **nufftax** makes it differentiable.
 Why nufftax?
 ------------
 
-Unlike other NUFFT libraries, nufftax is written in **pure JAX**:
+A JAX package for NUFFT already exists: `jax-finufft <https://github.com/flatironinstitute/jax-finufft>`_.
+However, it wraps the C++ FINUFFT library via Foreign Function Interface (FFI), exposing it through custom XLA calls. This approach can lead to:
+
+- **Kernel fusion issues on GPU** — custom XLA calls act as optimization barriers, preventing XLA from fusing operations
+- **JAX version constraints** — requires specific JAX versions (currently < 0.8)
+- **CUDA version matching** — GPU support requires matching CUDA versions between JAX and the library
+
+**nufftax** takes a different approach — pure JAX implementation:
 
 .. list-table::
    :widths: 50 50
@@ -45,9 +52,11 @@ Unlike other NUFFT libraries, nufftax is written in **pure JAX**:
    * - **Fully differentiable**
      - Compute gradients through the entire transform - both w.r.t. data values *and* sampling locations
    * - **JAX native**
-     - Works with ``jit``, ``grad``, ``vmap``, ``jvp``, ``vjp`` out of the box
+     - Works with ``jit``, ``grad``, ``vmap``, ``jvp``, ``vjp`` with no FFI barriers
    * - **GPU ready**
-     - Runs on GPU without code changes
+     - Runs on CPU/GPU without code changes, benefits from XLA fusion
+   * - **No version constraints**
+     - Works with any JAX version
    * - **No compilation step**
      - Pure Python/JAX - no C++ extensions to build
 

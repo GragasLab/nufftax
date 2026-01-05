@@ -23,9 +23,17 @@
 
 ## Why nufftax?
 
+A JAX package for NUFFT already exists: [jax-finufft](https://github.com/flatironinstitute/jax-finufft). However, it wraps the C++ FINUFFT library via Foreign Function Interface (FFI), exposing it through custom XLA calls. This approach can lead to:
+- **Kernel fusion issues on GPU** — custom XLA calls act as optimization barriers, preventing XLA from fusing operations
+- **JAX version constraints** — requires specific JAX versions (currently < 0.8)
+- **CUDA version matching** — GPU support requires matching CUDA versions between JAX and the library
+
+**nufftax** takes a different approach — pure JAX implementation:
+
 - **Fully differentiable** — gradients w.r.t. both values *and* sample locations
-- **Pure JAX** — works with `jit`, `grad`, `vmap`, `jvp`, `vjp`
-- **GPU ready** — runs on CPU/GPU without code changes
+- **Pure JAX** — works with `jit`, `grad`, `vmap`, `jvp`, `vjp` with no FFI barriers
+- **GPU ready** — runs on CPU/GPU without code changes, benefits from XLA fusion
+- **No version constraints** — works with any JAX version
 - **All NUFFT types** — Type 1, 2, 3 in 1D, 2D, 3D
 
 ## JAX Transformation Support

@@ -11,21 +11,21 @@ from .autodiff import (
     compute_position_gradient_3d,
     # 1D transforms with custom VJP
     nufft1d1,
-    nufft1d2,
     # 1D transforms with custom JVP
     nufft1d1_jvp,
+    nufft1d2,
     nufft1d2_jvp,
     # 2D transforms with custom VJP
     nufft2d1,
-    nufft2d2,
     # 2D transforms with custom JVP
     nufft2d1_jvp,
+    nufft2d2,
     nufft2d2_jvp,
     # 3D transforms with custom VJP
     nufft3d1,
-    nufft3d2,
     # 3D transforms with custom JVP
     nufft3d1_jvp,
+    nufft3d2,
     nufft3d2_jvp,
 )
 
