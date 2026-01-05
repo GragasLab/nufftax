@@ -29,7 +29,7 @@ def _build_deconv_factors_1d(phihat: jax.Array, n_modes: int, modeord: int = 0):
     Includes phase correction for the grid centering: x=0 maps to grid position nf/2,
     which introduces a phase of (-1)^k that must be corrected.
     """
-    kmin = -n_modes // 2
+    kmin = -(n_modes // 2)
     kmax = (n_modes - 1) // 2
 
     # Build factor array in output mode order
@@ -57,7 +57,7 @@ def _build_deconv_factors_1d(phihat: jax.Array, n_modes: int, modeord: int = 0):
 
 def _build_extraction_indices_1d(nf: int, n_modes: int, modeord: int = 0):
     """Build indices to extract modes from FFT output."""
-    kmin = -n_modes // 2
+    kmin = -(n_modes // 2)
     kmax = (n_modes - 1) // 2
 
     # Indices in fw_hat for positive and negative frequencies
@@ -132,7 +132,7 @@ def deconvolve_pad_1d(
         fw_hat: Padded and deconvolved grid for iFFT, shape (nf,) or (n_trans, nf)
     """
     n_modes = f.shape[-1]
-    kmin = -n_modes // 2
+    kmin = -(n_modes // 2)
     kmax = (n_modes - 1) // 2
 
     # Build factors in input order
@@ -252,9 +252,9 @@ def deconvolve_pad_2d(
 
     n_trans, n_modes2, n_modes1 = f.shape
 
-    k1_min = -n_modes1 // 2
+    k1_min = -(n_modes1 // 2)
     k1_max = (n_modes1 - 1) // 2
-    k2_min = -n_modes2 // 2
+    k2_min = -(n_modes2 // 2)
     k2_max = (n_modes2 - 1) // 2
 
     # Build deconvolution factors
@@ -397,11 +397,11 @@ def deconvolve_pad_3d(
 
     n_trans, n_modes3, n_modes2, n_modes1 = f.shape
 
-    k1_min = -n_modes1 // 2
+    k1_min = -(n_modes1 // 2)
     k1_max = (n_modes1 - 1) // 2
-    k2_min = -n_modes2 // 2
+    k2_min = -(n_modes2 // 2)
     k2_max = (n_modes2 - 1) // 2
-    k3_min = -n_modes3 // 2
+    k3_min = -(n_modes3 // 2)
     k3_max = (n_modes3 - 1) // 2
 
     # Build deconvolution factors

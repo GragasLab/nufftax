@@ -11,18 +11,23 @@ Tests cover:
 - JAX transformations (jit, vmap, grad)
 """
 
+import jax.numpy as jnp
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-# Import NUFFT functions when implemented
-# from nufftax import nufft1d1, nufft2d1, nufft3d1
-# from nufftax.transforms.nufft1 import nufft1d1, nufft2d1, nufft3d1
+from nufftax import nufft1d1, nufft2d1, nufft3d1
 from tests.conftest import (
     PRECISION_LEVELS,
     dft_nufft1d1,
     requires_finufft,
 )
+
+
+def relative_error(a, b):
+    """Compute relative error between two arrays."""
+    return float(jnp.linalg.norm(a - b) / jnp.linalg.norm(b))
+
 
 # ============================================================================
 # Test 1D Type 1 Against DFT Reference
@@ -68,21 +73,6 @@ class TestNUFFT1D1DFT:
         expected = np.exp(1j * k * np.pi / 2)
         assert_allclose(f, expected, rtol=1e-10)
 
-    @pytest.mark.parametrize("M", [10, 50, 100])
-    @pytest.mark.parametrize("n_modes", [8, 32, 64])
-    def test_nufft1d1_vs_dft(self, rng, M, n_modes):
-        """Compare nufft1d1 against DFT for small problems."""
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
-        c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
-
-        # DFT reference
-        dft_nufft1d1(x, c, n_modes)
-
-        # JAX implementation
-        # f_jax = nufft1d1(jnp.array(x), jnp.array(c), n_modes, eps=1e-12)
-
-        # rel_err = relative_error(f_jax, jnp.array(f_dft))
-        # assert rel_err < 1e-10, f"Relative error {rel_err} exceeds tolerance"
 
 
 # ============================================================================
@@ -100,7 +90,7 @@ class TestNUFFT1D1FINUFFT:
 
         M = 100
         n_modes = 64
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
+        x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
 
         f = finufft.nufft1d1(x, c, n_modes, eps=1e-9)
@@ -117,17 +107,17 @@ class TestNUFFT1D1FINUFFT:
         M = 1000
         n_modes = 128
 
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
+        x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
 
         # FINUFFT reference
-        finufft.nufft1d1(x, c, n_modes, eps=eps)
+        f_ref = finufft.nufft1d1(x, c, n_modes, eps=eps)
 
         # JAX implementation
-        # f_jax = nufft1d1(jnp.array(x), jnp.array(c), n_modes, eps=eps)
+        f_jax = nufft1d1(jnp.array(x), jnp.array(c), n_modes, eps=eps)
 
-        # rel_err = relative_error(f_jax, jnp.array(f_ref))
-        # assert rel_err < 10 * eps, f"eps={eps}, rel_err={rel_err}"
+        rel_err = relative_error(f_jax, jnp.array(f_ref))
+        assert rel_err < 10 * eps, f"eps={eps}, rel_err={rel_err}"
 
     @requires_finufft
     def test_nufft1d1_vs_finufft_large(self, rng):
@@ -138,14 +128,14 @@ class TestNUFFT1D1FINUFFT:
         n_modes = 1024
         eps = 1e-6
 
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
+        x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
 
-        finufft.nufft1d1(x, c, n_modes, eps=eps)
-        # f_jax = nufft1d1(jnp.array(x), jnp.array(c), n_modes, eps=eps)
+        f_ref = finufft.nufft1d1(x, c, n_modes, eps=eps)
+        f_jax = nufft1d1(jnp.array(x), jnp.array(c), n_modes, eps=eps)
 
-        # rel_err = relative_error(f_jax, jnp.array(f_ref))
-        # assert rel_err < 10 * eps
+        rel_err = relative_error(f_jax, jnp.array(f_ref))
+        assert rel_err < 10 * eps
 
     @requires_finufft
     def test_nufft1d1_iflag_positive(self, rng):
@@ -156,17 +146,17 @@ class TestNUFFT1D1FINUFFT:
         n_modes = 64
         eps = 1e-9
 
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
+        x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
 
-        # FINUFFT with iflag=1 (positive exponential)
-        finufft.nufft1d1(x, c, n_modes, eps=eps, isign=1)
+        # FINUFFT with isign=1 (positive exponential)
+        f_ref = finufft.nufft1d1(x, c, n_modes, eps=eps, isign=1)
 
-        # JAX with iflag=1
-        # f_jax = nufft1d1(jnp.array(x), jnp.array(c), n_modes, eps=eps, iflag=1)
+        # JAX with isign=1
+        f_jax = nufft1d1(jnp.array(x), jnp.array(c), n_modes, eps=eps, isign=1)
 
-        # rel_err = relative_error(f_jax, jnp.array(f_ref))
-        # assert rel_err < 10 * eps
+        rel_err = relative_error(f_jax, jnp.array(f_ref))
+        assert rel_err < 10 * eps
 
 
 # ============================================================================
@@ -184,8 +174,8 @@ class TestNUFFT2D1FINUFFT:
 
         M = 200
         n_modes = (32, 32)
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
-        y = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
+        x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
+        y = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
 
         f = finufft.nufft2d1(x, y, c, n_modes, eps=1e-9)
@@ -202,16 +192,16 @@ class TestNUFFT2D1FINUFFT:
         M = 500
         n_modes = (32, 48)
 
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
-        y = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
+        x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
+        y = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
 
-        finufft.nufft2d1(x, y, c, n_modes, eps=eps)
-        # f_jax = nufft2d1(jnp.array(x), jnp.array(y), jnp.array(c),
-        #                  n_modes, eps=eps)
+        f_ref = finufft.nufft2d1(x, y, c, n_modes, eps=eps)
+        f_jax = nufft2d1(jnp.array(x), jnp.array(y), jnp.array(c), n_modes, eps=eps)
 
-        # rel_err = relative_error(f_jax, jnp.array(f_ref))
-        # assert rel_err < 10 * eps
+        # JAX returns (n_modes2, n_modes1), FINUFFT returns (n_modes1, n_modes2)
+        rel_err = relative_error(f_jax, jnp.array(f_ref.T))
+        assert rel_err < 10 * eps
 
 
 # ============================================================================
@@ -229,9 +219,9 @@ class TestNUFFT3D1FINUFFT:
 
         M = 200
         n_modes = (16, 16, 16)
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
-        y = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
-        z = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
+        x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
+        y = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
+        z = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
 
         f = finufft.nufft3d1(x, y, z, c, n_modes, eps=1e-9)
@@ -248,14 +238,21 @@ class TestNUFFT3D1FINUFFT:
         M = 300
         n_modes = (16, 16, 16)
 
-        x = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
-        y = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
-        z = rng.uniform(0, 2 * np.pi, M).astype(np.float64)
+        x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
+        y = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
+        z = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         c = (rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128)
 
-        finufft.nufft3d1(x, y, z, c, n_modes, eps=eps)
-        # f_jax = nufft3d1(jnp.array(x), jnp.array(y), jnp.array(z),
-        #                  jnp.array(c), n_modes, eps=eps)
+        f_ref = finufft.nufft3d1(x, y, z, c, n_modes, eps=eps)
+        f_jax = nufft3d1(
+            jnp.array(x),
+            jnp.array(y),
+            jnp.array(z),
+            jnp.array(c),
+            n_modes,
+            eps=eps,
+        )
 
-        # rel_err = relative_error(f_jax, jnp.array(f_ref))
-        # assert rel_err < 10 * eps
+        # JAX returns (n3, n2, n1), FINUFFT returns (n1, n2, n3)
+        rel_err = relative_error(f_jax, jnp.array(np.transpose(f_ref, (2, 1, 0))))
+        assert rel_err < 10 * eps

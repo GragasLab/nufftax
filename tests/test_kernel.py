@@ -187,7 +187,7 @@ class TestESKernelDerivative:
             # Analytical derivative
             dphi_analytical = es_kernel_derivative(z, beta, c)
 
-            assert_allclose(dphi_analytical, dphi_numerical, rtol=1e-5)
+            assert_allclose(dphi_analytical, dphi_numerical, rtol=1e-8)
 
     def test_derivative_sign(self):
         """Derivative should be negative for z > 0 (kernel is decreasing)."""

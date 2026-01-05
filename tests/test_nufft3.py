@@ -152,7 +152,7 @@ class TestNufft1d3:
         result = nufft1d3(x, c, s, nf, eps=1e-6)
         expected = direct_nufft1d3(x, c, s)
 
-        np.testing.assert_allclose(result, expected, rtol=1e-4)
+        np.testing.assert_allclose(result, expected, rtol=1e-5)
 
     def test_single_target(self):
         """Test with single target frequency."""
@@ -169,7 +169,7 @@ class TestNufft1d3:
         result = nufft1d3(x, c, s, nf, eps=1e-6)
         expected = direct_nufft1d3(x, c, s)
 
-        np.testing.assert_allclose(result, expected, rtol=1e-4)
+        np.testing.assert_allclose(result, expected, rtol=1e-5)
 
     def test_batched_input(self):
         """Test with batched input."""

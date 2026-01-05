@@ -104,9 +104,8 @@ def _nufft1d1_bwd(n_modes: int, eps: float, isign: int, res: tuple, g: Array) ->
     - grad w.r.t. x: derivative of exponential kernel
 
     Note on JAX's complex gradient convention:
-    JAX passes the cotangent as dL/d(conj f) for complex outputs.
-    For holomorphic functions like NUFFT, we need dL/df = conj(dL/d(conj f)).
-    So we conjugate g before passing to the adjoint (Type 2).
+    JAX passes the cotangent g = dL/d(conj f) for complex outputs.
+    For L = sum|f|^2, this gives g = f.
     """
     x, c = res
 
@@ -120,20 +119,18 @@ def _nufft1d1_bwd(n_modes: int, eps: float, isign: int, res: tuple, g: Array) ->
     # f[k] = sum_j c[j] * exp(i * isign * k * x[j])
     # df/dx[j] = i * isign * k * c[j] * exp(i * isign * k * x[j])
     #
-    # Chain rule: dL/dx[j] = sum_k (dL/df[k] * df[k]/dx[j] + dL/d(conj f[k]) * d(conj f[k])/dx[j])
-    # Since f is holomorphic, d(conj f)/dx = conj(df/dx)
-    # = sum_k Re(conj(dL/df[k]) * df[k]/dx[j]) * 2  (for real L)
-    # = 2 * Re(sum_k g_conj[k] * i * isign * k * c[j] * exp(...))
-    # = 2 * Re(c[j] * i * isign * Type2(k * g_conj, -isign)[j])
+    # For real loss L:
+    # dL/dx[j] = 2 * isign * Im(conj(c[j]) * sum_k k * g[k] * exp(-i * isign * k * x[j]))
+    #          = 2 * Re(conj(c[j]) * (-i * isign) * Type2(k * g, -isign)[j])
 
-    k = jnp.arange(-n_modes // 2, (n_modes + 1) // 2)
+    k = jnp.arange(-(n_modes // 2), (n_modes + 1) // 2)
     kg = k * g_conj  # Weight by k
 
-    # Compute weighted transform
+    # Compute weighted transform with -isign
     dx_complex = _nufft1d2_impl(x, kg, eps, -isign)
 
-    # Apply chain rule with c and extract real gradient
-    dx = 2.0 * jnp.real(jnp.conj(c) * 1j * isign * dx_complex)
+    # Apply chain rule: use -1j and factor of 1 (not 2)
+    dx = jnp.real(jnp.conj(c) * (-1j) * isign * dx_complex)
 
     return (dx, dc)
 
@@ -190,9 +187,8 @@ def _nufft1d2_bwd(eps: float, isign: int, res: tuple, g: Array) -> tuple[Array |
     - grad w.r.t. x: derivative of exponential kernel
 
     Note on JAX's complex gradient convention:
-    JAX passes the cotangent as dL/d(conj c) for complex outputs.
-    For holomorphic functions like NUFFT, we need dL/dc = conj(dL/d(conj c)).
-    So we conjugate g before passing to the adjoint (Type 1).
+    JAX passes the cotangent g which for L = sum|c|^2 equals 2*conj(c).
+    The gradient w.r.t. x is: Re(conj(g) * (-i) * isign * Type2(k*conj(f), -isign))
     """
     x, f = res
     n_modes = f.shape[-1]
@@ -204,20 +200,18 @@ def _nufft1d2_bwd(eps: float, isign: int, res: tuple, g: Array) -> tuple[Array |
     df = _nufft1d1_impl(x, g_conj, n_modes, eps, -isign)
 
     # Gradient w.r.t. x:
-    # c[j] = sum_k f[k] * exp(i * isign * k * x[j])
-    # dc[j]/dx[j] = i * isign * sum_k k * f[k] * exp(i * isign * k * x[j])
-    #
-    # For real loss L:
-    # dL/dx[j] = 2 * Re(g_conj[j] * dc[j]/dx[j])
+    # dc[j]/dx[j] = i * isign * Type2(k*f, isign)[j]
+    # conj(dc[j]/dx[j]) = -i * isign * Type2(k*conj(f), -isign)[j]
+    # dL/dx = Re(conj(g) * conj(dc/dx)) = Re(g_conj * (-i*isign) * Type2(k*conj(f), -isign))
 
-    k = jnp.arange(-n_modes // 2, (n_modes + 1) // 2)
-    kf = k * f  # Weight by k
+    k = jnp.arange(-(n_modes // 2), (n_modes + 1) // 2)
+    k_conj_f = k * jnp.conj(f)  # Weight by k and conjugate f
 
-    # Compute weighted transform
-    dx_complex = _nufft1d2_impl(x, kf, eps, isign)
+    # Compute weighted transform with -isign
+    dx_complex = _nufft1d2_impl(x, k_conj_f, eps, -isign)
 
     # Apply chain rule
-    dx = 2.0 * jnp.real(g_conj * 1j * isign * dx_complex)
+    dx = jnp.real(g_conj * (-1j) * isign * dx_complex)
 
     return (dx, df)
 
@@ -266,7 +260,7 @@ def _nufft1d1_jvp(primals: tuple, tangents: tuple) -> tuple[Array, Array]:
     #    = i * isign * k * sum_j (c[j] * dx[j]) * exp(i * isign * k * x[j])
     #    = i * isign * k * nufft1(x, c * dx)
     if dx is not None:
-        k = jnp.arange(-n_modes // 2, (n_modes + 1) // 2)
+        k = jnp.arange(-(n_modes // 2), (n_modes + 1) // 2)
         # Transform of c * dx
         weighted_transform = _nufft1d1_impl(x, c * dx, n_modes, eps, isign)
         df_from_x = 1j * isign * k * weighted_transform
@@ -315,7 +309,7 @@ def _nufft1d2_jvp(primals: tuple, tangents: tuple) -> tuple[Array, Array]:
     # dc[j]/dx[j] = i * isign * sum_k k * f[k] * exp(i * isign * k * x[j])
     # dc[j] = dx[j] * dc[j]/dx[j]
     if dx is not None:
-        k = jnp.arange(-n_modes // 2, (n_modes + 1) // 2)
+        k = jnp.arange(-(n_modes // 2), (n_modes + 1) // 2)
         kf = k * f
         # Type 2 transform of k-weighted coefficients
         weighted_transform = _nufft1d2_impl(x, kf, eps, isign)
@@ -324,6 +318,250 @@ def _nufft1d2_jvp(primals: tuple, tangents: tuple) -> tuple[Array, Array]:
         dc_from_x = jnp.zeros_like(c)
 
     dc = dc_from_f + dc_from_x
+
+    return c, dc
+
+
+# =============================================================================
+# 2D Type 1 NUFFT with custom JVP (forward mode)
+# =============================================================================
+
+
+@jax.custom_jvp
+def nufft2d1_jvp(
+    x: Array, y: Array, c: Array, n_modes: tuple[int, int], eps: float = 1e-6, isign: int = 1
+) -> Array:
+    """
+    2D Type 1 NUFFT with forward-mode AD support.
+
+    Same as nufft2d1 but with JVP instead of VJP.
+    """
+    return _nufft2d1_impl(x, y, c, n_modes, eps, isign)
+
+
+@nufft2d1_jvp.defjvp
+def _nufft2d1_jvp(primals: tuple, tangents: tuple) -> tuple[Array, Array]:
+    """
+    Forward-mode differentiation for nufft2d1.
+    """
+    x, y, c, n_modes, eps, isign = primals
+    dx, dy, dc, _, _, _ = tangents
+    n1, n2 = n_modes
+
+    # Primal output
+    f = _nufft2d1_impl(x, y, c, n_modes, eps, isign)
+
+    # Tangent output: df = df/dc * dc + df/dx * dx + df/dy * dy
+
+    # Contribution from dc: standard Type 1 transform of dc
+    df_from_c = _nufft2d1_impl(x, y, dc, n_modes, eps, isign) if dc is not None else jnp.zeros_like(f)
+
+    # Contribution from dx:
+    # f[k1, k2] = sum_j c[j] * exp(i * isign * (k1*x[j] + k2*y[j]))
+    # df/dx[j] = i * isign * k1 * c[j] * exp(...)
+    # df = i * isign * k1 * nufft2d1(x, y, c * dx)
+    if dx is not None:
+        k1 = jnp.arange(-(n1 // 2), (n1 + 1) // 2)
+        weighted_transform = _nufft2d1_impl(x, y, c * dx, n_modes, eps, isign)
+        df_from_x = 1j * isign * k1[None, :] * weighted_transform  # k1 on axis 1
+    else:
+        df_from_x = jnp.zeros_like(f)
+
+    # Contribution from dy:
+    # df/dy[j] = i * isign * k2 * c[j] * exp(...)
+    if dy is not None:
+        k2 = jnp.arange(-(n2 // 2), (n2 + 1) // 2)
+        weighted_transform = _nufft2d1_impl(x, y, c * dy, n_modes, eps, isign)
+        df_from_y = 1j * isign * k2[:, None] * weighted_transform  # k2 on axis 0
+    else:
+        df_from_y = jnp.zeros_like(f)
+
+    df = df_from_c + df_from_x + df_from_y
+
+    return f, df
+
+
+# =============================================================================
+# 2D Type 2 NUFFT with custom JVP (forward mode)
+# =============================================================================
+
+
+@jax.custom_jvp
+def nufft2d2_jvp(x: Array, y: Array, f: Array, eps: float = 1e-6, isign: int = -1) -> Array:
+    """
+    2D Type 2 NUFFT with forward-mode AD support.
+
+    Same as nufft2d2 but with JVP instead of VJP.
+    """
+    return _nufft2d2_impl(x, y, f, eps, isign)
+
+
+@nufft2d2_jvp.defjvp
+def _nufft2d2_jvp(primals: tuple, tangents: tuple) -> tuple[Array, Array]:
+    """
+    Forward-mode differentiation for nufft2d2.
+    """
+    x, y, f, eps, isign = primals
+    dx, dy, df, _, _ = tangents
+    n2, n1 = f.shape  # f has shape (n2, n1)
+
+    # Primal output
+    c = _nufft2d2_impl(x, y, f, eps, isign)
+
+    # Tangent output: dc = dc/df * df + dc/dx * dx + dc/dy * dy
+
+    # Contribution from df: standard Type 2 transform of df
+    dc_from_f = _nufft2d2_impl(x, y, df, eps, isign) if df is not None else jnp.zeros_like(c)
+
+    # Contribution from dx:
+    # c[j] = sum_{k1,k2} f[k1,k2] * exp(i * isign * (k1*x[j] + k2*y[j]))
+    # dc[j]/dx[j] = i * isign * sum_{k1,k2} k1 * f[k1,k2] * exp(...)
+    if dx is not None:
+        k1 = jnp.arange(-(n1 // 2), (n1 + 1) // 2)
+        k1_f = f * k1[None, :]  # k1 on axis 1
+        weighted_transform = _nufft2d2_impl(x, y, k1_f, eps, isign)
+        dc_from_x = 1j * isign * dx * weighted_transform
+    else:
+        dc_from_x = jnp.zeros_like(c)
+
+    # Contribution from dy:
+    # dc[j]/dy[j] = i * isign * sum_{k1,k2} k2 * f[k1,k2] * exp(...)
+    if dy is not None:
+        k2 = jnp.arange(-(n2 // 2), (n2 + 1) // 2)
+        k2_f = f * k2[:, None]  # k2 on axis 0
+        weighted_transform = _nufft2d2_impl(x, y, k2_f, eps, isign)
+        dc_from_y = 1j * isign * dy * weighted_transform
+    else:
+        dc_from_y = jnp.zeros_like(c)
+
+    dc = dc_from_f + dc_from_x + dc_from_y
+
+    return c, dc
+
+
+# =============================================================================
+# 3D Type 1 NUFFT with custom JVP (forward mode)
+# =============================================================================
+
+
+@jax.custom_jvp
+def nufft3d1_jvp(
+    x: Array, y: Array, z: Array, c: Array, n_modes: tuple[int, int, int], eps: float = 1e-6, isign: int = 1
+) -> Array:
+    """
+    3D Type 1 NUFFT with forward-mode AD support.
+
+    Same as nufft3d1 but with JVP instead of VJP.
+    """
+    return _nufft3d1_impl(x, y, z, c, n_modes, eps, isign)
+
+
+@nufft3d1_jvp.defjvp
+def _nufft3d1_jvp(primals: tuple, tangents: tuple) -> tuple[Array, Array]:
+    """
+    Forward-mode differentiation for nufft3d1.
+    """
+    x, y, z, c, n_modes, eps, isign = primals
+    dx, dy, dz, dc, _, _, _ = tangents
+    n1, n2, n3 = n_modes
+
+    # Primal output
+    f = _nufft3d1_impl(x, y, z, c, n_modes, eps, isign)
+
+    # Tangent output: df = df/dc * dc + df/dx * dx + df/dy * dy + df/dz * dz
+
+    # Contribution from dc
+    df_from_c = _nufft3d1_impl(x, y, z, dc, n_modes, eps, isign) if dc is not None else jnp.zeros_like(f)
+
+    # Contribution from dx: k1 on axis 2
+    if dx is not None:
+        k1 = jnp.arange(-(n1 // 2), (n1 + 1) // 2)
+        weighted_transform = _nufft3d1_impl(x, y, z, c * dx, n_modes, eps, isign)
+        df_from_x = 1j * isign * k1[None, None, :] * weighted_transform
+    else:
+        df_from_x = jnp.zeros_like(f)
+
+    # Contribution from dy: k2 on axis 1
+    if dy is not None:
+        k2 = jnp.arange(-(n2 // 2), (n2 + 1) // 2)
+        weighted_transform = _nufft3d1_impl(x, y, z, c * dy, n_modes, eps, isign)
+        df_from_y = 1j * isign * k2[None, :, None] * weighted_transform
+    else:
+        df_from_y = jnp.zeros_like(f)
+
+    # Contribution from dz: k3 on axis 0
+    if dz is not None:
+        k3 = jnp.arange(-(n3 // 2), (n3 + 1) // 2)
+        weighted_transform = _nufft3d1_impl(x, y, z, c * dz, n_modes, eps, isign)
+        df_from_z = 1j * isign * k3[:, None, None] * weighted_transform
+    else:
+        df_from_z = jnp.zeros_like(f)
+
+    df = df_from_c + df_from_x + df_from_y + df_from_z
+
+    return f, df
+
+
+# =============================================================================
+# 3D Type 2 NUFFT with custom JVP (forward mode)
+# =============================================================================
+
+
+@jax.custom_jvp
+def nufft3d2_jvp(x: Array, y: Array, z: Array, f: Array, eps: float = 1e-6, isign: int = -1) -> Array:
+    """
+    3D Type 2 NUFFT with forward-mode AD support.
+
+    Same as nufft3d2 but with JVP instead of VJP.
+    """
+    return _nufft3d2_impl(x, y, z, f, eps, isign)
+
+
+@nufft3d2_jvp.defjvp
+def _nufft3d2_jvp(primals: tuple, tangents: tuple) -> tuple[Array, Array]:
+    """
+    Forward-mode differentiation for nufft3d2.
+    """
+    x, y, z, f, eps, isign = primals
+    dx, dy, dz, df, _, _ = tangents
+    n3, n2, n1 = f.shape  # f has shape (n3, n2, n1)
+
+    # Primal output
+    c = _nufft3d2_impl(x, y, z, f, eps, isign)
+
+    # Tangent output: dc = dc/df * df + dc/dx * dx + dc/dy * dy + dc/dz * dz
+
+    # Contribution from df
+    dc_from_f = _nufft3d2_impl(x, y, z, df, eps, isign) if df is not None else jnp.zeros_like(c)
+
+    # Contribution from dx: k1 on axis 2
+    if dx is not None:
+        k1 = jnp.arange(-(n1 // 2), (n1 + 1) // 2)
+        k1_f = f * k1[None, None, :]
+        weighted_transform = _nufft3d2_impl(x, y, z, k1_f, eps, isign)
+        dc_from_x = 1j * isign * dx * weighted_transform
+    else:
+        dc_from_x = jnp.zeros_like(c)
+
+    # Contribution from dy: k2 on axis 1
+    if dy is not None:
+        k2 = jnp.arange(-(n2 // 2), (n2 + 1) // 2)
+        k2_f = f * k2[None, :, None]
+        weighted_transform = _nufft3d2_impl(x, y, z, k2_f, eps, isign)
+        dc_from_y = 1j * isign * dy * weighted_transform
+    else:
+        dc_from_y = jnp.zeros_like(c)
+
+    # Contribution from dz: k3 on axis 0
+    if dz is not None:
+        k3 = jnp.arange(-(n3 // 2), (n3 + 1) // 2)
+        k3_f = f * k3[:, None, None]
+        weighted_transform = _nufft3d2_impl(x, y, z, k3_f, eps, isign)
+        dc_from_z = 1j * isign * dz * weighted_transform
+    else:
+        dc_from_z = jnp.zeros_like(c)
+
+    dc = dc_from_f + dc_from_x + dc_from_y + dc_from_z
 
     return c, dc
 
@@ -361,7 +599,7 @@ def nufft2d1(x: Array, y: Array, c: Array, n_modes: tuple[int, int], eps: float 
         isign: Sign of exponent
 
     Returns:
-        f: Fourier coefficients, shape (n1, n2)
+        f: Fourier coefficients, shape (n2, n1)
     """
     return _nufft2d1_impl(x, y, c, n_modes, eps, isign)
 
@@ -376,22 +614,23 @@ def _nufft2d1_bwd(res, g):
     n1, n2 = n_modes
 
     # Conjugate g for correct gradient through holomorphic function
+    # g has shape (n2, n1): y-axis is axis 0, x-axis is axis 1
     g_conj = jnp.conj(g)
 
     # Gradient w.r.t. c
     dc = _nufft2d2_impl(x, y, g_conj, eps, -isign)
 
-    # Gradient w.r.t. x
+    # Gradient w.r.t. x: k1 indexes axis 1 (size n1)
     k1 = jnp.arange(-n1 // 2, (n1 + 1) // 2)
-    k1_g = k1[:, None] * g_conj  # Weight rows by k1
+    k1_g = g_conj * k1[None, :]  # Weight axis 1 by k1
     dx_complex = _nufft2d2_impl(x, y, k1_g, eps, -isign)
-    dx = 2.0 * jnp.real(jnp.conj(c) * 1j * isign * dx_complex)
+    dx = jnp.real(jnp.conj(c) * (-1j) * isign * dx_complex)
 
-    # Gradient w.r.t. y
+    # Gradient w.r.t. y: k2 indexes axis 0 (size n2)
     k2 = jnp.arange(-n2 // 2, (n2 + 1) // 2)
-    k2_g = k2[None, :] * g_conj  # Weight columns by k2
+    k2_g = g_conj * k2[:, None]  # Weight axis 0 by k2
     dy_complex = _nufft2d2_impl(x, y, k2_g, eps, -isign)
-    dy = 2.0 * jnp.real(jnp.conj(c) * 1j * isign * dy_complex)
+    dy = jnp.real(jnp.conj(c) * (-1j) * isign * dy_complex)
 
     return (dx, dy, dc, None, None, None)
 
@@ -407,7 +646,7 @@ def nufft2d2(x: Array, y: Array, f: Array, eps: float = 1e-6, isign: int = -1) -
     Args:
         x: x-coordinates of nonuniform points, shape (M,)
         y: y-coordinates of nonuniform points, shape (M,)
-        f: Fourier coefficients, shape (n1, n2)
+        f: Fourier coefficients, shape (n2, n1)
         eps: Requested precision
         isign: Sign of exponent
 
@@ -424,25 +663,28 @@ def _nufft2d2_fwd(x, y, f, eps, isign):
 
 def _nufft2d2_bwd(res, g):
     x, y, f, eps, isign = res
-    n1, n2 = f.shape
+    # f has shape (n2, n1): y-axis is axis 0, x-axis is axis 1
+    n2, n1 = f.shape
 
     # Conjugate g for correct gradient through holomorphic function
     g_conj = jnp.conj(g)
+    f_conj = jnp.conj(f)
 
     # Gradient w.r.t. f
     df = _nufft2d1_impl(x, y, g_conj, (n1, n2), eps, -isign)
 
-    # Gradient w.r.t. x
+    # Gradient w.r.t. x: k1 indexes axis 1 (size n1)
+    # Use conj(f) and -isign for the correct gradient formula
     k1 = jnp.arange(-n1 // 2, (n1 + 1) // 2)
-    k1_f = k1[:, None] * f
-    dx_complex = _nufft2d2_impl(x, y, k1_f, eps, isign)
-    dx = 2.0 * jnp.real(g_conj * 1j * isign * dx_complex)
+    k1_f = f_conj * k1[None, :]  # Weight axis 1 by k1
+    dx_complex = _nufft2d2_impl(x, y, k1_f, eps, -isign)
+    dx = jnp.real(g_conj * (-1j) * isign * dx_complex)
 
-    # Gradient w.r.t. y
+    # Gradient w.r.t. y: k2 indexes axis 0 (size n2)
     k2 = jnp.arange(-n2 // 2, (n2 + 1) // 2)
-    k2_f = k2[None, :] * f
-    dy_complex = _nufft2d2_impl(x, y, k2_f, eps, isign)
-    dy = 2.0 * jnp.real(g_conj * 1j * isign * dy_complex)
+    k2_f = f_conj * k2[:, None]  # Weight axis 0 by k2
+    dy_complex = _nufft2d2_impl(x, y, k2_f, eps, -isign)
+    dy = jnp.real(g_conj * (-1j) * isign * dy_complex)
 
     return (dx, dy, df, None, None)
 
@@ -501,28 +743,29 @@ def _nufft3d1_bwd(res, g):
     n1, n2, n3 = n_modes
 
     # Conjugate g for correct gradient through holomorphic function
+    # g has shape (n3, n2, n1): z-axis is axis 0, y-axis is axis 1, x-axis is axis 2
     g_conj = jnp.conj(g)
 
     # Gradient w.r.t. c
     dc = _nufft3d2_impl(x, y, z, g_conj, eps, -isign)
 
-    # Gradient w.r.t. x
+    # Gradient w.r.t. x: k1 indexes axis 2 (size n1)
     k1 = jnp.arange(-n1 // 2, (n1 + 1) // 2)
-    k1_g = k1[:, None, None] * g_conj
+    k1_g = g_conj * k1[None, None, :]  # Weight axis 2 by k1
     dx_complex = _nufft3d2_impl(x, y, z, k1_g, eps, -isign)
-    dx = 2.0 * jnp.real(jnp.conj(c) * 1j * isign * dx_complex)
+    dx = jnp.real(jnp.conj(c) * (-1j) * isign * dx_complex)
 
-    # Gradient w.r.t. y
+    # Gradient w.r.t. y: k2 indexes axis 1 (size n2)
     k2 = jnp.arange(-n2 // 2, (n2 + 1) // 2)
-    k2_g = k2[None, :, None] * g_conj
+    k2_g = g_conj * k2[None, :, None]  # Weight axis 1 by k2
     dy_complex = _nufft3d2_impl(x, y, z, k2_g, eps, -isign)
-    dy = 2.0 * jnp.real(jnp.conj(c) * 1j * isign * dy_complex)
+    dy = jnp.real(jnp.conj(c) * (-1j) * isign * dy_complex)
 
-    # Gradient w.r.t. z
+    # Gradient w.r.t. z: k3 indexes axis 0 (size n3)
     k3 = jnp.arange(-n3 // 2, (n3 + 1) // 2)
-    k3_g = k3[None, None, :] * g_conj
+    k3_g = g_conj * k3[:, None, None]  # Weight axis 0 by k3
     dz_complex = _nufft3d2_impl(x, y, z, k3_g, eps, -isign)
-    dz = 2.0 * jnp.real(jnp.conj(c) * 1j * isign * dz_complex)
+    dz = jnp.real(jnp.conj(c) * (-1j) * isign * dz_complex)
 
     return (dx, dy, dz, dc, None, None, None)
 
@@ -554,31 +797,34 @@ def _nufft3d2_fwd(x, y, z, f, eps, isign):
 
 def _nufft3d2_bwd(res, g):
     x, y, z, f, eps, isign = res
-    n1, n2, n3 = f.shape
+    # f has shape (n3, n2, n1): z-axis is axis 0, y-axis is axis 1, x-axis is axis 2
+    n3, n2, n1 = f.shape
 
     # Conjugate g for correct gradient through holomorphic function
     g_conj = jnp.conj(g)
+    f_conj = jnp.conj(f)
 
     # Gradient w.r.t. f
     df = _nufft3d1_impl(x, y, z, g_conj, (n1, n2, n3), eps, -isign)
 
-    # Gradient w.r.t. x
+    # Gradient w.r.t. x: k1 indexes axis 2 (size n1)
+    # Use conj(f) and -isign for correct gradient formula
     k1 = jnp.arange(-n1 // 2, (n1 + 1) // 2)
-    k1_f = k1[:, None, None] * f
-    dx_complex = _nufft3d2_impl(x, y, z, k1_f, eps, isign)
-    dx = 2.0 * jnp.real(g_conj * 1j * isign * dx_complex)
+    k1_f = f_conj * k1[None, None, :]  # Weight axis 2 by k1
+    dx_complex = _nufft3d2_impl(x, y, z, k1_f, eps, -isign)
+    dx = jnp.real(g_conj * (-1j) * isign * dx_complex)
 
-    # Gradient w.r.t. y
+    # Gradient w.r.t. y: k2 indexes axis 1 (size n2)
     k2 = jnp.arange(-n2 // 2, (n2 + 1) // 2)
-    k2_f = k2[None, :, None] * f
-    dy_complex = _nufft3d2_impl(x, y, z, k2_f, eps, isign)
-    dy = 2.0 * jnp.real(g_conj * 1j * isign * dy_complex)
+    k2_f = f_conj * k2[None, :, None]  # Weight axis 1 by k2
+    dy_complex = _nufft3d2_impl(x, y, z, k2_f, eps, -isign)
+    dy = jnp.real(g_conj * (-1j) * isign * dy_complex)
 
-    # Gradient w.r.t. z
+    # Gradient w.r.t. z: k3 indexes axis 0 (size n3)
     k3 = jnp.arange(-n3 // 2, (n3 + 1) // 2)
-    k3_f = k3[None, None, :] * f
-    dz_complex = _nufft3d2_impl(x, y, z, k3_f, eps, isign)
-    dz = 2.0 * jnp.real(g_conj * 1j * isign * dz_complex)
+    k3_f = f_conj * k3[:, None, None]  # Weight axis 0 by k3
+    dz_complex = _nufft3d2_impl(x, y, z, k3_f, eps, -isign)
+    dz = jnp.real(g_conj * (-1j) * isign * dz_complex)
 
     return (dx, dy, dz, df, None, None)
 
@@ -618,21 +864,21 @@ def compute_position_gradient_1d(
     Returns:
         dx: Gradient w.r.t. x, shape (M,)
     """
-    k = jnp.arange(-n_modes // 2, (n_modes + 1) // 2)
+    k = jnp.arange(-(n_modes // 2), (n_modes + 1) // 2)
+    g_conj = jnp.conj(upstream_grad)
 
     if transform_type == 1:
         # For Type 1: f[k] = sum_j c[j] * exp(i * isign * k * x[j])
-        # df/dx[j] = i * isign * sum_k k * g[k] * c[j] * exp(i * isign * k * x[j])
-        kg = k * upstream_grad
+        kg = k * g_conj
         dx_complex = _nufft1d2_impl(x, kg, eps, -isign)
-        dx = 2.0 * jnp.real(jnp.conj(c) * 1j * isign * dx_complex)
+        dx = jnp.real(jnp.conj(c) * (-1j) * isign * dx_complex)
     else:
         # For Type 2: c[j] = sum_k f[k] * exp(i * isign * k * x[j])
-        # dc[j]/dx[j] = i * isign * sum_k k * f[k] * exp(i * isign * k * x[j])
         # Note: c here is actually f (the Fourier coefficients)
-        kf = k * c  # c is f for Type 2
-        dx_complex = _nufft1d2_impl(x, kf, eps, isign)
-        dx = 2.0 * jnp.real(jnp.conj(upstream_grad) * 1j * isign * dx_complex)
+        # Use conj(c) and -isign for correct gradient formula
+        kf = k * jnp.conj(c)  # c is f for Type 2
+        dx_complex = _nufft1d2_impl(x, kf, eps, -isign)
+        dx = jnp.real(g_conj * (-1j) * isign * dx_complex)
 
     return dx
 
@@ -653,7 +899,7 @@ def compute_position_gradient_2d(
     Args:
         x, y: Point positions, each shape (M,)
         weights: c for Type 1, f for Type 2
-        upstream_grad: Upstream gradient
+        upstream_grad: Upstream gradient, shape (n2, n1)
         n_modes: (n1, n2) number of modes
         eps: Precision tolerance
         isign: Sign of exponent
@@ -665,27 +911,30 @@ def compute_position_gradient_2d(
     n1, n2 = n_modes
     k1 = jnp.arange(-n1 // 2, (n1 + 1) // 2)
     k2 = jnp.arange(-n2 // 2, (n2 + 1) // 2)
+    g_conj = jnp.conj(upstream_grad)
 
     if transform_type == 1:
-        # g is upstream gradient with shape (n1, n2)
-        k1_g = k1[:, None] * upstream_grad
-        k2_g = k2[None, :] * upstream_grad
+        # g is upstream gradient with shape (n2, n1): y-axis is axis 0, x-axis is axis 1
+        k1_g = g_conj * k1[None, :]  # Weight axis 1 by k1
+        k2_g = g_conj * k2[:, None]  # Weight axis 0 by k2
 
         dx_complex = _nufft2d2_impl(x, y, k1_g, eps, -isign)
         dy_complex = _nufft2d2_impl(x, y, k2_g, eps, -isign)
 
-        dx = 2.0 * jnp.real(jnp.conj(weights) * 1j * isign * dx_complex)
-        dy = 2.0 * jnp.real(jnp.conj(weights) * 1j * isign * dy_complex)
+        dx = jnp.real(jnp.conj(weights) * (-1j) * isign * dx_complex)
+        dy = jnp.real(jnp.conj(weights) * (-1j) * isign * dy_complex)
     else:
-        # weights is f (Fourier coefficients)
-        k1_f = k1[:, None] * weights
-        k2_f = k2[None, :] * weights
+        # weights is f (Fourier coefficients) with shape (n2, n1)
+        # Use conj(weights) and -isign for correct gradient formula
+        w_conj = jnp.conj(weights)
+        k1_f = w_conj * k1[None, :]  # Weight axis 1 by k1
+        k2_f = w_conj * k2[:, None]  # Weight axis 0 by k2
 
-        dx_complex = _nufft2d2_impl(x, y, k1_f, eps, isign)
-        dy_complex = _nufft2d2_impl(x, y, k2_f, eps, isign)
+        dx_complex = _nufft2d2_impl(x, y, k1_f, eps, -isign)
+        dy_complex = _nufft2d2_impl(x, y, k2_f, eps, -isign)
 
-        dx = 2.0 * jnp.real(jnp.conj(upstream_grad) * 1j * isign * dx_complex)
-        dy = 2.0 * jnp.real(jnp.conj(upstream_grad) * 1j * isign * dy_complex)
+        dx = jnp.real(g_conj * (-1j) * isign * dx_complex)
+        dy = jnp.real(g_conj * (-1j) * isign * dy_complex)
 
     return dx, dy
 
@@ -707,7 +956,7 @@ def compute_position_gradient_3d(
     Args:
         x, y, z: Point positions, each shape (M,)
         weights: c for Type 1, f for Type 2
-        upstream_grad: Upstream gradient
+        upstream_grad: Upstream gradient, shape (n3, n2, n1)
         n_modes: (n1, n2, n3) number of modes
         eps: Precision tolerance
         isign: Sign of exponent
@@ -720,31 +969,36 @@ def compute_position_gradient_3d(
     k1 = jnp.arange(-n1 // 2, (n1 + 1) // 2)
     k2 = jnp.arange(-n2 // 2, (n2 + 1) // 2)
     k3 = jnp.arange(-n3 // 2, (n3 + 1) // 2)
+    g_conj = jnp.conj(upstream_grad)
 
     if transform_type == 1:
-        k1_g = k1[:, None, None] * upstream_grad
-        k2_g = k2[None, :, None] * upstream_grad
-        k3_g = k3[None, None, :] * upstream_grad
+        # g has shape (n3, n2, n1): z-axis is axis 0, y-axis is axis 1, x-axis is axis 2
+        k1_g = g_conj * k1[None, None, :]  # Weight axis 2 by k1
+        k2_g = g_conj * k2[None, :, None]  # Weight axis 1 by k2
+        k3_g = g_conj * k3[:, None, None]  # Weight axis 0 by k3
 
         dx_complex = _nufft3d2_impl(x, y, z, k1_g, eps, -isign)
         dy_complex = _nufft3d2_impl(x, y, z, k2_g, eps, -isign)
         dz_complex = _nufft3d2_impl(x, y, z, k3_g, eps, -isign)
 
-        dx = 2.0 * jnp.real(jnp.conj(weights) * 1j * isign * dx_complex)
-        dy = 2.0 * jnp.real(jnp.conj(weights) * 1j * isign * dy_complex)
-        dz = 2.0 * jnp.real(jnp.conj(weights) * 1j * isign * dz_complex)
+        dx = jnp.real(jnp.conj(weights) * (-1j) * isign * dx_complex)
+        dy = jnp.real(jnp.conj(weights) * (-1j) * isign * dy_complex)
+        dz = jnp.real(jnp.conj(weights) * (-1j) * isign * dz_complex)
     else:
-        k1_f = k1[:, None, None] * weights
-        k2_f = k2[None, :, None] * weights
-        k3_f = k3[None, None, :] * weights
+        # weights (f) has shape (n3, n2, n1)
+        # Use conj(weights) and -isign for correct gradient formula
+        w_conj = jnp.conj(weights)
+        k1_f = w_conj * k1[None, None, :]  # Weight axis 2 by k1
+        k2_f = w_conj * k2[None, :, None]  # Weight axis 1 by k2
+        k3_f = w_conj * k3[:, None, None]  # Weight axis 0 by k3
 
-        dx_complex = _nufft3d2_impl(x, y, z, k1_f, eps, isign)
-        dy_complex = _nufft3d2_impl(x, y, z, k2_f, eps, isign)
-        dz_complex = _nufft3d2_impl(x, y, z, k3_f, eps, isign)
+        dx_complex = _nufft3d2_impl(x, y, z, k1_f, eps, -isign)
+        dy_complex = _nufft3d2_impl(x, y, z, k2_f, eps, -isign)
+        dz_complex = _nufft3d2_impl(x, y, z, k3_f, eps, -isign)
 
-        dx = 2.0 * jnp.real(jnp.conj(upstream_grad) * 1j * isign * dx_complex)
-        dy = 2.0 * jnp.real(jnp.conj(upstream_grad) * 1j * isign * dy_complex)
-        dz = 2.0 * jnp.real(jnp.conj(upstream_grad) * 1j * isign * dz_complex)
+        dx = jnp.real(g_conj * (-1j) * isign * dx_complex)
+        dy = jnp.real(g_conj * (-1j) * isign * dy_complex)
+        dz = jnp.real(g_conj * (-1j) * isign * dz_complex)
 
     return dx, dy, dz
 
@@ -886,9 +1140,15 @@ __all__ = [
     # 2D transforms with VJP
     "nufft2d1",
     "nufft2d2",
+    # 2D transforms with JVP
+    "nufft2d1_jvp",
+    "nufft2d2_jvp",
     # 3D transforms with VJP
     "nufft3d1",
     "nufft3d2",
+    # 3D transforms with JVP
+    "nufft3d1_jvp",
+    "nufft3d2_jvp",
     # Helper functions
     "compute_position_gradient_1d",
     "compute_position_gradient_2d",

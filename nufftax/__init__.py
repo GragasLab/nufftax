@@ -8,12 +8,29 @@ that are fully compatible with JAX transformations including:
 - jvp: Forward-mode automatic differentiation
 - vmap: Automatic vectorization
 
+JAX Transformation Support
+--------------------------
++------------------+-----+----------+-----+------+
+| Transform        | jit | grad/vjp | jvp | vmap |
++------------------+-----+----------+-----+------+
+| Type 1 (1D/2D/3D)|  Y  |    Y     |  Y  |  Y   |
+| Type 2 (1D/2D/3D)|  Y  |    Y     |  Y  |  Y   |
+| Type 3 (1D/2D/3D)|  Y  |   WIP    | WIP |  Y   |
++------------------+-----+----------+-----+------+
+
+Differentiable inputs:
+- Type 1: grad w.r.t. c (strengths) and x, y, z (coordinates)
+- Type 2: grad w.r.t. f (Fourier modes) and x, y, z (coordinates)
+- Type 3: grad w.r.t. c and coordinates (in development)
+
 Main functions:
 - nufft1d1, nufft1d2: 1D NUFFT Type 1 and Type 2
 - nufft2d1, nufft2d2: 2D NUFFT Type 1 and Type 2
 - nufft3d1, nufft3d2: 3D NUFFT Type 1 and Type 2
+- nufft1d3, nufft2d3, nufft3d3: Type 3 (nonuniform to nonuniform)
 
 Example:
+    import jax
     import jax.numpy as jnp
     from nufftax import nufft1d1, nufft1d2
 
@@ -24,6 +41,10 @@ Example:
 
     # Type 2: Uniform Fourier modes to nonuniform points
     c2 = nufft1d2(x, f, eps=1e-6)
+
+    # Gradients work directly with jax.grad/jax.vjp/jax.jvp
+    grad_c = jax.grad(lambda c: jnp.sum(jnp.abs(nufft1d1(x, c, 64))**2))(c)
+    grad_x = jax.grad(lambda x: jnp.sum(jnp.abs(nufft1d1(x, c, 64))**2))(x)
 """
 
 __version__ = "0.1.0"

@@ -81,38 +81,43 @@ def _prepare_batched_grid_2d(fw: jax.Array) -> tuple[jax.Array, int, int, int, b
     """Prepare 2D grid array for batched processing.
 
     Args:
-        fw: Grid array, shape (nf1, nf2) or (n_trans, nf1, nf2)
+        fw: Grid array, shape (nf2, nf1) or (n_trans, nf2, nf1)
+            Note: Grid has y-dimension first, x-dimension second.
 
     Returns:
-        fw_flat: Flattened batched array, shape (n_trans, nf1*nf2)
-        nf1, nf2: Grid sizes
+        fw_flat: Flattened batched array, shape (n_trans, nf2*nf1)
+        nf1: Grid size in x-direction (second dimension of fw)
+        nf2: Grid size in y-direction (first dimension of fw)
         n_trans: Number of transforms
         is_batched: Whether input was already batched
     """
     if fw.ndim == 3:
-        n_trans, nf1, nf2 = fw.shape
-        return fw.reshape(n_trans, nf1 * nf2), nf1, nf2, n_trans, True
-    nf1, nf2 = fw.shape
-    return fw.reshape(1, nf1 * nf2), nf1, nf2, 1, False
+        n_trans, dim0, dim1 = fw.shape  # dim0=nf2, dim1=nf1
+        return fw.reshape(n_trans, dim0 * dim1), dim1, dim0, n_trans, True
+    dim0, dim1 = fw.shape  # dim0=nf2, dim1=nf1
+    return fw.reshape(1, dim0 * dim1), dim1, dim0, 1, False
 
 
 def _prepare_batched_grid_3d(fw: jax.Array) -> tuple[jax.Array, int, int, int, int, bool]:
     """Prepare 3D grid array for batched processing.
 
     Args:
-        fw: Grid array, shape (nf1, nf2, nf3) or (n_trans, nf1, nf2, nf3)
+        fw: Grid array, shape (nf3, nf2, nf1) or (n_trans, nf3, nf2, nf1)
+            Note: Grid has z-dimension first, y-dimension second, x-dimension last.
 
     Returns:
-        fw_flat: Flattened batched array, shape (n_trans, nf1*nf2*nf3)
-        nf1, nf2, nf3: Grid sizes
+        fw_flat: Flattened batched array, shape (n_trans, nf3*nf2*nf1)
+        nf1: Grid size in x-direction (last dimension of fw)
+        nf2: Grid size in y-direction (second-to-last dimension of fw)
+        nf3: Grid size in z-direction (third-to-last dimension of fw)
         n_trans: Number of transforms
         is_batched: Whether input was already batched
     """
     if fw.ndim == 4:
-        n_trans, nf1, nf2, nf3 = fw.shape
-        return fw.reshape(n_trans, nf1 * nf2 * nf3), nf1, nf2, nf3, n_trans, True
-    nf1, nf2, nf3 = fw.shape
-    return fw.reshape(1, nf1 * nf2 * nf3), nf1, nf2, nf3, 1, False
+        n_trans, dim0, dim1, dim2 = fw.shape  # dim0=nf3, dim1=nf2, dim2=nf1
+        return fw.reshape(n_trans, dim0 * dim1 * dim2), dim2, dim1, dim0, n_trans, True
+    dim0, dim1, dim2 = fw.shape  # dim0=nf3, dim1=nf2, dim2=nf1
+    return fw.reshape(1, dim0 * dim1 * dim2), dim2, dim1, dim0, 1, False
 
 
 def compute_kernel_weights_1d(
@@ -396,8 +401,8 @@ def spread_2d_impl(
     # Get kernel weights and indices for each dimension
     indices_x, indices_y, weights_x, weights_y = compute_kernel_weights_2d(x_scaled, y_scaled, nf1, nf2, kernel_params)
 
-    # Initialize output grid
-    fw = jnp.zeros((n_trans, nf1, nf2), dtype=c.dtype)
+    # Initialize output grid (nf2, nf1) to match indexing: indices_y*nf1 + indices_x
+    fw = jnp.zeros((n_trans, nf2, nf1), dtype=c.dtype)
 
     # For 2D, we need to scatter to nspread x nspread points per nonuniform point
     # Compute 2D indices as linear indices into flattened grid
@@ -420,7 +425,7 @@ def spread_2d_impl(
         return jax.ops.segment_sum(wc_t, indices_flat, num_segments=nf1 * nf2)
 
     fw_flat = jax.vmap(segment_sum_for_one_transform)(weighted_c_flat)
-    fw = fw_flat.reshape(n_trans, nf1, nf2)
+    fw = fw_flat.reshape(n_trans, nf2, nf1)
 
     if not is_batched:
         fw = fw[0]
@@ -585,7 +590,7 @@ def spread_3d_impl(
         return jax.ops.segment_sum(wc_t, indices_flat, num_segments=nf1 * nf2 * nf3)
 
     fw_flat = jax.vmap(segment_sum_for_one_transform)(weighted_c_flat)
-    fw = fw_flat.reshape(n_trans, nf1, nf2, nf3)
+    fw = fw_flat.reshape(n_trans, nf3, nf2, nf1)
 
     if not is_batched:
         fw = fw[0]
