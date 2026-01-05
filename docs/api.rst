@@ -51,11 +51,9 @@ All functions support JAX transformations. Use ``jax.grad``, ``jax.vjp``, or ``j
      - ✅
    * - **Type 3** (1D/2D/3D)
      - ✅
-     - ⚠️
-     - ⚠️
      - ✅
-
-✅ = Fully supported | ⚠️ = Work in progress
+     - ✅
+     - ✅
 
 **Differentiable inputs:**
 
@@ -70,7 +68,7 @@ All functions support JAX transformations. Use ``jax.grad``, ``jax.vjp``, or ``j
    * - Type 2
      - ``f`` (Fourier modes), ``x``, ``y``, ``z`` (coordinates)
    * - Type 3
-     - ``c``, coordinates (in development)
+     - ``c`` (strengths), ``x``, ``y``, ``z`` (source coordinates), ``s``, ``t``, ``u`` (target frequencies)
 
 **Example:**
 

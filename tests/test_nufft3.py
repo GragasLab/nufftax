@@ -112,7 +112,8 @@ class TestNufft1d3:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-10, maxval=10)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -132,7 +133,8 @@ class TestNufft1d3:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -161,7 +163,8 @@ class TestNufft1d3:
 
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
         s = jnp.array([3.14])
 
@@ -204,7 +207,8 @@ class TestNufft1d3:
         # Large frequency range
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-100, maxval=100)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-5)
@@ -228,7 +232,8 @@ class TestNufft2d3:
         s = jax.random.uniform(jax.random.PRNGKey(44), (N,), minval=-5, maxval=5)
         t = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(46), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
+            jax.random.normal(jax.random.PRNGKey(46), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
         ).astype(jnp.complex64)
 
         n_modes = get_n_modes_2d(x, y, s, t, eps=1e-6)
@@ -273,14 +278,18 @@ class TestNufft3d3:
 
         # Use float64 for 3D Type 3 - float32 accumulates too much error
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
-        y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
-        z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        y = jax.random.uniform(
+            jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64
+        )
+        z = jax.random.uniform(
+            jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64
+        )
         s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-3, maxval=3, dtype=jnp.float64)
         t = jax.random.uniform(jax.random.PRNGKey(46), (N,), minval=-3, maxval=3, dtype=jnp.float64)
         u = jax.random.uniform(jax.random.PRNGKey(47), (N,), minval=-3, maxval=3, dtype=jnp.float64)
-        c = jax.random.normal(jax.random.PRNGKey(48), (M,), dtype=jnp.float64) + 1j * jax.random.normal(
-            jax.random.PRNGKey(49), (M,), dtype=jnp.float64
-        )
+        c = jax.random.normal(
+            jax.random.PRNGKey(48), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(49), (M,), dtype=jnp.float64)
 
         n_modes = get_n_modes_3d(x, y, z, s, t, u, eps=1e-5)
         result = nufft3d3(x, y, z, c, s, t, u, n_modes, eps=1e-5)
@@ -366,7 +375,9 @@ class TestNufft2d3FINUFFT:
         f_finufft = finufft.nufft2d3(x, y, c, s, t, eps=1e-9)
 
         n_modes = get_n_modes_2d(jnp.array(x), jnp.array(y), jnp.array(s), jnp.array(t), eps=1e-9)
-        f_jax = nufft2d3(jnp.array(x), jnp.array(y), jnp.array(c), jnp.array(s), jnp.array(t), n_modes, eps=1e-9)
+        f_jax = nufft2d3(
+            jnp.array(x), jnp.array(y), jnp.array(c), jnp.array(s), jnp.array(t), n_modes, eps=1e-9
+        )
 
         rel_error = np.linalg.norm(np.array(f_jax) - f_finufft) / np.linalg.norm(f_finufft)
         assert rel_error < 1e-6, f"Relative error {rel_error} too large"
@@ -386,7 +397,9 @@ class TestNufft2d3FINUFFT:
         f_finufft = finufft.nufft2d3(x, y, c, s, t, eps=eps)
 
         n_modes = get_n_modes_2d(jnp.array(x), jnp.array(y), jnp.array(s), jnp.array(t), eps=eps)
-        f_jax = nufft2d3(jnp.array(x), jnp.array(y), jnp.array(c), jnp.array(s), jnp.array(t), n_modes, eps=eps)
+        f_jax = nufft2d3(
+            jnp.array(x), jnp.array(y), jnp.array(c), jnp.array(s), jnp.array(t), n_modes, eps=eps
+        )
 
         rel_error = np.linalg.norm(np.array(f_jax) - f_finufft) / np.linalg.norm(f_finufft)
         assert rel_error < 10 * eps, f"Relative error {rel_error} exceeds 10*eps={10 * eps}"
@@ -491,7 +504,8 @@ class TestNufft3JIT:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -519,7 +533,8 @@ class TestNufft3JIT:
         s = jax.random.uniform(jax.random.PRNGKey(44), (N,), minval=-5, maxval=5)
         t = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(46), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
+            jax.random.normal(jax.random.PRNGKey(46), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
         ).astype(jnp.complex64)
 
         n_modes = get_n_modes_2d(x, y, s, t, eps=1e-6)
@@ -545,7 +560,8 @@ class TestNufft3JIT:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -571,7 +587,8 @@ class TestNufft3Grad:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -584,3 +601,267 @@ class TestNufft3Grad:
 
         assert grad_c.shape == c.shape
         assert not jnp.any(jnp.isnan(grad_c))
+
+    def test_grad_c_finite_diff_1d(self):
+        """Test gradient w.r.t. c using finite differences for 1D Type 3."""
+        M, N = 20, 15
+        key = jax.random.PRNGKey(42)
+
+        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-3, maxval=3, dtype=jnp.float64)
+        c = jax.random.normal(
+            jax.random.PRNGKey(44), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,), dtype=jnp.float64)
+
+        nf = get_n_modes_1d(x, s, eps=1e-9)
+
+        def loss(c):
+            result = nufft1d3(x, c, s, nf, eps=1e-9)
+            return jnp.sum(jnp.abs(result) ** 2).real
+
+        grad_c = jax.grad(loss)(c)
+
+        # Finite difference verification
+        eps_fd = 1e-6
+        grad_fd = jnp.zeros_like(c)
+        for i in range(M):
+            # Real part
+            c_plus = c.at[i].add(eps_fd)
+            c_minus = c.at[i].add(-eps_fd)
+            grad_fd = grad_fd.at[i].add((loss(c_plus) - loss(c_minus)) / (2 * eps_fd))
+            # Imaginary part
+            c_plus = c.at[i].add(1j * eps_fd)
+            c_minus = c.at[i].add(-1j * eps_fd)
+            grad_fd = grad_fd.at[i].add(1j * (loss(c_plus) - loss(c_minus)) / (2 * eps_fd))
+
+        rel_error = jnp.linalg.norm(grad_c - grad_fd) / jnp.linalg.norm(grad_fd)
+        assert rel_error < 1e-4, f"Gradient error {rel_error} too large"
+
+    def test_grad_x_finite_diff_1d(self):
+        """Test gradient w.r.t. x using finite differences for 1D Type 3."""
+        M, N = 20, 15
+        key = jax.random.PRNGKey(42)
+
+        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-3, maxval=3, dtype=jnp.float64)
+        c = jax.random.normal(
+            jax.random.PRNGKey(44), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,), dtype=jnp.float64)
+
+        nf = get_n_modes_1d(x, s, eps=1e-9)
+
+        def loss(x):
+            result = nufft1d3(x, c, s, nf, eps=1e-9)
+            return jnp.sum(jnp.abs(result) ** 2).real
+
+        grad_x = jax.grad(loss)(x)
+
+        # Finite difference verification
+        eps_fd = 1e-6
+        grad_fd = jnp.zeros_like(x)
+        for i in range(M):
+            x_plus = x.at[i].add(eps_fd)
+            x_minus = x.at[i].add(-eps_fd)
+            grad_fd = grad_fd.at[i].set((loss(x_plus) - loss(x_minus)) / (2 * eps_fd))
+
+        rel_error = jnp.linalg.norm(grad_x - grad_fd) / jnp.linalg.norm(grad_fd)
+        assert rel_error < 1e-4, f"Gradient error {rel_error} too large"
+
+    def test_grad_s_finite_diff_1d(self):
+        """Test gradient w.r.t. s using finite differences for 1D Type 3."""
+        M, N = 20, 15
+        key = jax.random.PRNGKey(42)
+
+        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-3, maxval=3, dtype=jnp.float64)
+        c = jax.random.normal(
+            jax.random.PRNGKey(44), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,), dtype=jnp.float64)
+
+        nf = get_n_modes_1d(x, s, eps=1e-9)
+
+        def loss(s):
+            result = nufft1d3(x, c, s, nf, eps=1e-9)
+            return jnp.sum(jnp.abs(result) ** 2).real
+
+        grad_s = jax.grad(loss)(s)
+
+        # Finite difference verification
+        eps_fd = 1e-6
+        grad_fd = jnp.zeros_like(s)
+        for i in range(N):
+            s_plus = s.at[i].add(eps_fd)
+            s_minus = s.at[i].add(-eps_fd)
+            grad_fd = grad_fd.at[i].set((loss(s_plus) - loss(s_minus)) / (2 * eps_fd))
+
+        rel_error = jnp.linalg.norm(grad_s - grad_fd) / jnp.linalg.norm(grad_fd)
+        assert rel_error < 1e-4, f"Gradient error {rel_error} too large"
+
+    def test_grad_2d_finite_diff(self):
+        """Test gradients for 2D Type 3 using finite differences."""
+        M, N = 15, 10
+        key = jax.random.PRNGKey(42)
+
+        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        y = jax.random.uniform(
+            jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64
+        )
+        s = jax.random.uniform(jax.random.PRNGKey(44), (N,), minval=-3, maxval=3, dtype=jnp.float64)
+        t = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-3, maxval=3, dtype=jnp.float64)
+        c = jax.random.normal(
+            jax.random.PRNGKey(46), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,), dtype=jnp.float64)
+
+        n_modes = get_n_modes_2d(x, y, s, t, eps=1e-9)
+
+        def loss_c(c):
+            result = nufft2d3(x, y, c, s, t, n_modes, eps=1e-9)
+            return jnp.sum(jnp.abs(result) ** 2).real
+
+        def loss_x(x):
+            result = nufft2d3(x, y, c, s, t, n_modes, eps=1e-9)
+            return jnp.sum(jnp.abs(result) ** 2).real
+
+        def loss_s(s):
+            result = nufft2d3(x, y, c, s, t, n_modes, eps=1e-9)
+            return jnp.sum(jnp.abs(result) ** 2).real
+
+        # Test grad_c
+        grad_c = jax.grad(loss_c)(c)
+        assert grad_c.shape == c.shape
+        assert not jnp.any(jnp.isnan(grad_c))
+
+        # Test grad_x
+        grad_x = jax.grad(loss_x)(x)
+        assert grad_x.shape == x.shape
+        assert not jnp.any(jnp.isnan(grad_x))
+
+        # Test grad_s
+        grad_s = jax.grad(loss_s)(s)
+        assert grad_s.shape == s.shape
+        assert not jnp.any(jnp.isnan(grad_s))
+
+        # Finite difference check for grad_x
+        eps_fd = 1e-6
+        grad_fd = jnp.zeros_like(x)
+        for i in range(M):
+            x_plus = x.at[i].add(eps_fd)
+            x_minus = x.at[i].add(-eps_fd)
+            grad_fd = grad_fd.at[i].set((loss_x(x_plus) - loss_x(x_minus)) / (2 * eps_fd))
+
+        rel_error = jnp.linalg.norm(grad_x - grad_fd) / jnp.linalg.norm(grad_fd)
+        assert rel_error < 1e-4, f"2D gradient w.r.t. x error {rel_error} too large"
+
+    def test_grad_3d_basic(self):
+        """Test basic gradient computation for 3D Type 3."""
+        M, N = 10, 8
+        key = jax.random.PRNGKey(42)
+
+        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        y = jax.random.uniform(
+            jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64
+        )
+        z = jax.random.uniform(
+            jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64
+        )
+        s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-2, maxval=2, dtype=jnp.float64)
+        t = jax.random.uniform(jax.random.PRNGKey(46), (N,), minval=-2, maxval=2, dtype=jnp.float64)
+        u = jax.random.uniform(jax.random.PRNGKey(47), (N,), minval=-2, maxval=2, dtype=jnp.float64)
+        c = jax.random.normal(
+            jax.random.PRNGKey(48), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(49), (M,), dtype=jnp.float64)
+
+        n_modes = get_n_modes_3d(x, y, z, s, t, u, eps=1e-6)
+
+        def loss(c):
+            result = nufft3d3(x, y, z, c, s, t, u, n_modes, eps=1e-6)
+            return jnp.sum(jnp.abs(result) ** 2).real
+
+        grad_c = jax.grad(loss)(c)
+
+        assert grad_c.shape == c.shape
+        assert not jnp.any(jnp.isnan(grad_c))
+
+    def test_jvp_1d(self):
+        """Test JVP (forward-mode AD) for 1D Type 3 via finite differences."""
+        from nufftax.transforms.autodiff import nufft1d3_jvp
+
+        M, N = 20, 15
+        key = jax.random.PRNGKey(42)
+
+        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-3, maxval=3, dtype=jnp.float64)
+        c = jax.random.normal(
+            jax.random.PRNGKey(44), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,), dtype=jnp.float64)
+
+        nf = get_n_modes_1d(x, s, eps=1e-9)
+
+        # Tangent vector for c
+        dc = jax.random.normal(
+            jax.random.PRNGKey(51), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(52), (M,), dtype=jnp.float64)
+
+        # Test JVP via jacfwd (only for c, which avoids static arguments issue)
+        def forward_c(c):
+            return nufft1d3_jvp(x, c, s, nf, 1e-9, 1, 2.0)
+
+        # Compute Jacobian-vector product via jacfwd (holomorphic=True for complex inputs)
+        jac_c = jax.jacfwd(forward_c, holomorphic=True)(c)
+
+        # Verify Jacobian has correct shape and is not NaN
+        assert jac_c.shape == (N, M)
+        assert not jnp.any(jnp.isnan(jac_c))
+
+        # Verify Jacobian-vector product matches finite differences
+        jvp_c = jnp.einsum("nm,m->n", jac_c, dc)
+
+        eps_fd = 1e-7
+        f_plus = nufft1d3_jvp(x, c + eps_fd * dc, s, nf, 1e-9, 1, 2.0)
+        f_minus = nufft1d3_jvp(x, c - eps_fd * dc, s, nf, 1e-9, 1, 2.0)
+        jvp_fd = (f_plus - f_minus) / (2 * eps_fd)
+
+        rel_error = jnp.linalg.norm(jvp_c - jvp_fd) / jnp.linalg.norm(jvp_fd)
+        assert rel_error < 1e-4, f"JVP error {rel_error} too large"
+
+    def test_jvp_2d(self):
+        """Test JVP (forward-mode AD) for 2D Type 3 via finite differences."""
+        from nufftax.transforms.autodiff import nufft2d3_jvp
+
+        M, N = 15, 10
+        key = jax.random.PRNGKey(42)
+
+        x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        y = jax.random.uniform(
+            jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64
+        )
+        s = jax.random.uniform(jax.random.PRNGKey(44), (N,), minval=-3, maxval=3, dtype=jnp.float64)
+        t = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-3, maxval=3, dtype=jnp.float64)
+        c = jax.random.normal(
+            jax.random.PRNGKey(46), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,), dtype=jnp.float64)
+
+        n_modes = get_n_modes_2d(x, y, s, t, eps=1e-9)
+
+        # Test JVP via jacfwd (only for c)
+        def forward_c(c):
+            return nufft2d3_jvp(x, y, c, s, t, n_modes, 1e-9, 1, 2.0)
+
+        jac_c = jax.jacfwd(forward_c, holomorphic=True)(c)
+
+        assert jac_c.shape == (N, M)
+        assert not jnp.any(jnp.isnan(jac_c))
+
+        # Verify against finite differences
+        dc = jax.random.normal(
+            jax.random.PRNGKey(52), (M,), dtype=jnp.float64
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(53), (M,), dtype=jnp.float64)
+        jvp_c = jnp.einsum("nm,m->n", jac_c, dc)
+
+        eps_fd = 1e-7
+        f_plus = nufft2d3_jvp(x, y, c + eps_fd * dc, s, t, n_modes, 1e-9, 1, 2.0)
+        f_minus = nufft2d3_jvp(x, y, c - eps_fd * dc, s, t, n_modes, 1e-9, 1, 2.0)
+        jvp_fd = (f_plus - f_minus) / (2 * eps_fd)
+
+        rel_error = jnp.linalg.norm(jvp_c - jvp_fd) / jnp.linalg.norm(jvp_fd)
+        assert rel_error < 1e-4, f"JVP error {rel_error} too large"
