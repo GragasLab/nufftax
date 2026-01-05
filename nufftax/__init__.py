@@ -47,7 +47,7 @@ Example:
     grad_x = jax.grad(lambda x: jnp.sum(jnp.abs(nufft1d1(x, c, 64))**2))(x)
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.1"
 
 # Type 1 transforms (Nonuniform to Uniform) - with autodiff support
 # Type 2 transforms (Uniform to Nonuniform) - with autodiff support
