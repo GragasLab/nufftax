@@ -135,11 +135,7 @@ def nufft2d2(
     fw_hat = deconvolve_pad_2d(f, phihat1, phihat2, nf1, nf2, modeord)
 
     # Step 2: Transform to spatial domain
-    fw = (
-        jnp.fft.fft2(fw_hat, axes=(-2, -1))
-        if isign < 0
-        else jnp.fft.ifft2(fw_hat, axes=(-2, -1)) * (nf1 * nf2)
-    )
+    fw = jnp.fft.fft2(fw_hat, axes=(-2, -1)) if isign < 0 else jnp.fft.ifft2(fw_hat, axes=(-2, -1)) * (nf1 * nf2)
 
     # Step 3: Normalize coordinates to [-pi, pi)
     x_normalized = jnp.mod(x + jnp.pi, 2.0 * jnp.pi) - jnp.pi

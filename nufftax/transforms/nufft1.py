@@ -159,11 +159,7 @@ def nufft2d1(
     fw = spread_2d(x_normalized, y_normalized, c, nf1, nf2, kernel_params)
 
     # 2D FFT - sign convention same as 1D
-    fw_hat = (
-        jnp.fft.ifft2(fw, axes=(-2, -1)) * (nf1 * nf2)
-        if isign > 0
-        else jnp.fft.fft2(fw, axes=(-2, -1))
-    )
+    fw_hat = jnp.fft.ifft2(fw, axes=(-2, -1)) * (nf1 * nf2) if isign > 0 else jnp.fft.fft2(fw, axes=(-2, -1))
 
     # Deconvolve and shuffle
     f = deconvolve_shuffle_2d(fw_hat, phihat1, phihat2, n_modes1, n_modes2, modeord)
@@ -250,9 +246,7 @@ def nufft3d1(
         fw_hat = jnp.fft.fftn(fw, axes=(-3, -2, -1))
 
     # Deconvolve and shuffle
-    f = deconvolve_shuffle_3d(
-        fw_hat, phihat1, phihat2, phihat3, n_modes1, n_modes2, n_modes3, modeord
-    )
+    f = deconvolve_shuffle_3d(fw_hat, phihat1, phihat2, phihat3, n_modes1, n_modes2, n_modes3, modeord)
 
     if not batched:
         f = f[0]

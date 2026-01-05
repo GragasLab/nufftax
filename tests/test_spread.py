@@ -240,9 +240,7 @@ class TestInterpBasic:
         M = 50
         nf = 64
         x = jnp.array(rng.uniform(-np.pi, np.pi, M).astype(np.float64))
-        fw = jnp.array(
-            (rng.standard_normal(nf) + 1j * rng.standard_normal(nf)).astype(np.complex128)
-        )
+        fw = jnp.array((rng.standard_normal(nf) + 1j * rng.standard_normal(nf)).astype(np.complex128))
 
         c = interp_1d(x, fw, nf, kernel_params)
         assert c.dtype == jnp.complex128
@@ -403,9 +401,7 @@ class TestSpreadJAXTransforms:
         nf = 64
 
         x = jnp.array(rng.uniform(-np.pi, np.pi, M))
-        c_batch = jnp.array(
-            rng.standard_normal((batch_size, M)) + 1j * rng.standard_normal((batch_size, M))
-        )
+        c_batch = jnp.array(rng.standard_normal((batch_size, M)) + 1j * rng.standard_normal((batch_size, M)))
 
         batched_spread = jax.vmap(lambda c: spread_1d(x, c, nf, kernel_params))
         fw_batch = batched_spread(c_batch)
@@ -485,9 +481,7 @@ class TestSpread3D:
         y = jnp.array(rng.uniform(-np.pi, np.pi, M))
         z = jnp.array(rng.uniform(-np.pi, np.pi, M))
         c = jnp.array(rng.standard_normal(M) + 1j * rng.standard_normal(M))
-        fw = jnp.array(
-            rng.standard_normal((nf1, nf2, nf3)) + 1j * rng.standard_normal((nf1, nf2, nf3))
-        )
+        fw = jnp.array(rng.standard_normal((nf1, nf2, nf3)) + 1j * rng.standard_normal((nf1, nf2, nf3)))
 
         spread_c = spread_3d(x, y, z, c, nf1, nf2, nf3, kernel_params)
         interp_fw = interp_3d(x, y, z, fw, nf1, nf2, nf3, kernel_params)

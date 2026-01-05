@@ -138,9 +138,7 @@ class TestESKernel:
                 # Max should be at or near origin (within 1 index for numerical reasons)
                 max_idx = int(jnp.argmax(phi))
                 center_idx = len(z) // 2
-                assert (
-                    abs(max_idx - center_idx) <= 1
-                ), f"Max at {max_idx}, expected near {center_idx}"
+                assert abs(max_idx - center_idx) <= 1, f"Max at {max_idx}, expected near {center_idx}"
 
 
 # ============================================================================

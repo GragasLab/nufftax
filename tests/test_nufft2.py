@@ -176,9 +176,7 @@ class TestNUFFT2D2FINUFFT:
         x = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         y = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         # Generate f with FINUFFT shape convention
-        f_finufft = (rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(
-            np.complex128
-        )
+        f_finufft = (rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(np.complex128)
 
         # FINUFFT takes f as (n1, n2), JAX expects (n2, n1)
         c_ref = finufft.nufft2d2(x, y, f_finufft, eps=eps)
@@ -227,9 +225,7 @@ class TestNUFFT3D2FINUFFT:
         y = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         z = rng.uniform(-np.pi, np.pi, M).astype(np.float64)
         # Generate f with FINUFFT shape convention
-        f_finufft = (rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(
-            np.complex128
-        )
+        f_finufft = (rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(np.complex128)
 
         # FINUFFT takes f as (n1, n2, n3), JAX expects (n3, n2, n1)
         c_ref = finufft.nufft3d2(x, y, z, f_finufft, eps=eps)
@@ -321,9 +317,7 @@ class TestAdjointProperty:
 
         x = jnp.array(rng.uniform(-np.pi, np.pi, M).astype(np.float64))
         c = jnp.array((rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128))
-        f = jnp.array(
-            (rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(np.complex128)
-        )
+        f = jnp.array((rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(np.complex128))
 
         # Type 1: c -> f1 (default isign=+1)
         f1 = nufft1d1(x, c, n_modes, eps=eps)
@@ -370,9 +364,7 @@ class TestAdjointProperty:
         x = jnp.array(rng.uniform(-np.pi, np.pi, M).astype(np.float64))
         y = jnp.array(rng.uniform(-np.pi, np.pi, M).astype(np.float64))
         c = jnp.array((rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128))
-        f = jnp.array(
-            (rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(np.complex128)
-        )
+        f = jnp.array((rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(np.complex128))
 
         f1 = nufft2d1(x, y, c, n_modes, eps=eps)
         c2 = nufft2d2(x, y, f, eps=eps)
@@ -417,9 +409,7 @@ class TestAdjointProperty:
         y = jnp.array(rng.uniform(-np.pi, np.pi, M).astype(np.float64))
         z = jnp.array(rng.uniform(-np.pi, np.pi, M).astype(np.float64))
         c = jnp.array((rng.standard_normal(M) + 1j * rng.standard_normal(M)).astype(np.complex128))
-        f = jnp.array(
-            (rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(np.complex128)
-        )
+        f = jnp.array((rng.standard_normal(n_modes) + 1j * rng.standard_normal(n_modes)).astype(np.complex128))
 
         f1 = nufft3d1(x, y, z, c, n_modes, eps=eps)
         c2 = nufft3d2(x, y, z, f, eps=eps)

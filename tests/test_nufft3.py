@@ -112,8 +112,7 @@ class TestNufft1d3:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-10, maxval=10)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -133,8 +132,7 @@ class TestNufft1d3:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -163,8 +161,7 @@ class TestNufft1d3:
 
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
         s = jnp.array([3.14])
 
@@ -207,8 +204,7 @@ class TestNufft1d3:
         # Large frequency range
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-100, maxval=100)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-5)
@@ -232,8 +228,7 @@ class TestNufft2d3:
         s = jax.random.uniform(jax.random.PRNGKey(44), (N,), minval=-5, maxval=5)
         t = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(46), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
+            jax.random.normal(jax.random.PRNGKey(46), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
         ).astype(jnp.complex64)
 
         n_modes = get_n_modes_2d(x, y, s, t, eps=1e-6)
@@ -278,18 +273,14 @@ class TestNufft3d3:
 
         # Use float64 for 3D Type 3 - float32 accumulates too much error
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
-        y = jax.random.uniform(
-            jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64
-        )
-        z = jax.random.uniform(
-            jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64
-        )
+        y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
+        z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi, dtype=jnp.float64)
         s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-3, maxval=3, dtype=jnp.float64)
         t = jax.random.uniform(jax.random.PRNGKey(46), (N,), minval=-3, maxval=3, dtype=jnp.float64)
         u = jax.random.uniform(jax.random.PRNGKey(47), (N,), minval=-3, maxval=3, dtype=jnp.float64)
-        c = jax.random.normal(
-            jax.random.PRNGKey(48), (M,), dtype=jnp.float64
-        ) + 1j * jax.random.normal(jax.random.PRNGKey(49), (M,), dtype=jnp.float64)
+        c = jax.random.normal(jax.random.PRNGKey(48), (M,), dtype=jnp.float64) + 1j * jax.random.normal(
+            jax.random.PRNGKey(49), (M,), dtype=jnp.float64
+        )
 
         n_modes = get_n_modes_3d(x, y, z, s, t, u, eps=1e-5)
         result = nufft3d3(x, y, z, c, s, t, u, n_modes, eps=1e-5)
@@ -375,9 +366,7 @@ class TestNufft2d3FINUFFT:
         f_finufft = finufft.nufft2d3(x, y, c, s, t, eps=1e-9)
 
         n_modes = get_n_modes_2d(jnp.array(x), jnp.array(y), jnp.array(s), jnp.array(t), eps=1e-9)
-        f_jax = nufft2d3(
-            jnp.array(x), jnp.array(y), jnp.array(c), jnp.array(s), jnp.array(t), n_modes, eps=1e-9
-        )
+        f_jax = nufft2d3(jnp.array(x), jnp.array(y), jnp.array(c), jnp.array(s), jnp.array(t), n_modes, eps=1e-9)
 
         rel_error = np.linalg.norm(np.array(f_jax) - f_finufft) / np.linalg.norm(f_finufft)
         assert rel_error < 1e-6, f"Relative error {rel_error} too large"
@@ -397,9 +386,7 @@ class TestNufft2d3FINUFFT:
         f_finufft = finufft.nufft2d3(x, y, c, s, t, eps=eps)
 
         n_modes = get_n_modes_2d(jnp.array(x), jnp.array(y), jnp.array(s), jnp.array(t), eps=eps)
-        f_jax = nufft2d3(
-            jnp.array(x), jnp.array(y), jnp.array(c), jnp.array(s), jnp.array(t), n_modes, eps=eps
-        )
+        f_jax = nufft2d3(jnp.array(x), jnp.array(y), jnp.array(c), jnp.array(s), jnp.array(t), n_modes, eps=eps)
 
         rel_error = np.linalg.norm(np.array(f_jax) - f_finufft) / np.linalg.norm(f_finufft)
         assert rel_error < 10 * eps, f"Relative error {rel_error} exceeds 10*eps={10 * eps}"
@@ -504,8 +491,7 @@ class TestNufft3JIT:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -533,8 +519,7 @@ class TestNufft3JIT:
         s = jax.random.uniform(jax.random.PRNGKey(44), (N,), minval=-5, maxval=5)
         t = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(46), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
+            jax.random.normal(jax.random.PRNGKey(46), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
         ).astype(jnp.complex64)
 
         n_modes = get_n_modes_2d(x, y, s, t, eps=1e-6)
@@ -560,8 +545,7 @@ class TestNufft3JIT:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
@@ -587,8 +571,7 @@ class TestNufft3Grad:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         s = jax.random.uniform(jax.random.PRNGKey(43), (N,), minval=-5, maxval=5)
         c = (
-            jax.random.normal(jax.random.PRNGKey(44), (M,))
-            + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+            jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
         ).astype(jnp.complex64)
 
         nf = get_n_modes_1d(x, s, eps=1e-6)
