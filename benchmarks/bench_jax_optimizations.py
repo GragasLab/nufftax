@@ -60,7 +60,8 @@ def test_jit_boundaries():
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex64)
 
             # Version 1: No explicit JIT (relies on internal JIT)
@@ -101,7 +102,8 @@ def test_gradient_checkpointing():
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         c = (
-            jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+            jax.random.normal(jax.random.PRNGKey(43), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
         ).astype(jnp.complex64)
 
         # Loss function
@@ -194,9 +196,10 @@ def test_static_args():
 
     key = jax.random.PRNGKey(42)
     x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-    c = (jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))).astype(
-        jnp.complex64
-    )
+    c = (
+        jax.random.normal(jax.random.PRNGKey(43), (M,))
+        + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+    ).astype(jnp.complex64)
 
     # Test with different N values (causes recompilation)
     print("Testing recompilation overhead with different N values:")
@@ -247,9 +250,10 @@ def test_donate_argnums():
 
     key = jax.random.PRNGKey(42)
     x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-    c = (jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))).astype(
-        jnp.complex64
-    )
+    c = (
+        jax.random.normal(jax.random.PRNGKey(43), (M,))
+        + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+    ).astype(jnp.complex64)
 
     # Version 1: No donation
     @jax.jit

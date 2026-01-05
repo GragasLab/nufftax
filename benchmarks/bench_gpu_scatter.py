@@ -87,10 +87,16 @@ def run_single_benchmark(M, grid_size, dtype=jnp.float32, n_runs=100):
     scatter_segment_sum = make_scatter_segment_sum(grid_size)
 
     time_add_at = benchmark(
-        scatter_add_at, (indices, values), n_runs=n_runs, name=f"add.at (M={M:,}, grid={grid_size:,})"
+        scatter_add_at,
+        (indices, values),
+        n_runs=n_runs,
+        name=f"add.at (M={M:,}, grid={grid_size:,})",
     )
     time_segment_sum = benchmark(
-        scatter_segment_sum, (indices, values), n_runs=n_runs, name=f"segment_sum (M={M:,}, grid={grid_size:,})"
+        scatter_segment_sum,
+        (indices, values),
+        n_runs=n_runs,
+        name=f"segment_sum (M={M:,}, grid={grid_size:,})",
     )
 
     speedup = time_add_at / time_segment_sum
@@ -127,10 +133,16 @@ def run_nufft_realistic_benchmark(M, nspread, grid_size, dtype=jnp.float32, n_ru
     scatter_segment_sum = make_scatter_segment_sum(grid_size)
 
     time_add_at = benchmark(
-        scatter_add_at, (indices, values), n_runs=n_runs, name=f"add.at (NUFFT M={M:,}, nspread={nspread})"
+        scatter_add_at,
+        (indices, values),
+        n_runs=n_runs,
+        name=f"add.at (NUFFT M={M:,}, nspread={nspread})",
     )
     time_segment_sum = benchmark(
-        scatter_segment_sum, (indices, values), n_runs=n_runs, name=f"segment_sum (NUFFT M={M:,}, nspread={nspread})"
+        scatter_segment_sum,
+        (indices, values),
+        n_runs=n_runs,
+        name=f"segment_sum (NUFFT M={M:,}, nspread={nspread})",
     )
 
     speedup = time_add_at / time_segment_sum
@@ -210,11 +222,19 @@ def main():
     print(f"\nBasic benchmarks: add.at wins {add_at_wins}, segment_sum wins {segment_sum_wins}")
 
     add_at_wins_nufft = sum(1 for r in results["nufft_benchmarks"] if r["winner"] == "add.at")
-    segment_sum_wins_nufft = sum(1 for r in results["nufft_benchmarks"] if r["winner"] == "segment_sum")
-    print(f"NUFFT benchmarks: add.at wins {add_at_wins_nufft}, segment_sum wins {segment_sum_wins_nufft}")
+    segment_sum_wins_nufft = sum(
+        1 for r in results["nufft_benchmarks"] if r["winner"] == "segment_sum"
+    )
+    print(
+        f"NUFFT benchmarks: add.at wins {add_at_wins_nufft}, segment_sum wins {segment_sum_wins_nufft}"
+    )
 
-    avg_speedup_basic = sum(r["speedup"] for r in results["benchmarks"]) / len(results["benchmarks"])
-    avg_speedup_nufft = sum(r["speedup"] for r in results["nufft_benchmarks"]) / len(results["nufft_benchmarks"])
+    avg_speedup_basic = sum(r["speedup"] for r in results["benchmarks"]) / len(
+        results["benchmarks"]
+    )
+    avg_speedup_nufft = sum(r["speedup"] for r in results["nufft_benchmarks"]) / len(
+        results["nufft_benchmarks"]
+    )
     print("\nAverage speedup (segment_sum vs add.at):")
     print(f"  Basic: {avg_speedup_basic:.2f}x")
     print(f"  NUFFT: {avg_speedup_nufft:.2f}x")

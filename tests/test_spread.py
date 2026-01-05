@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from nufftax.core import spread_1d, spread_2d, spread_3d, interp_1d, interp_2d, interp_3d
+from nufftax.core import interp_1d, interp_2d, interp_3d, spread_1d, spread_2d, spread_3d
 from nufftax.core.kernel import compute_kernel_params
 
 # ============================================================================
@@ -217,7 +217,6 @@ class TestSpreadCorrectness:
         assert np.linalg.norm(fw) > 0
 
 
-
 # ============================================================================
 # Test Interpolation Basic Properties
 # ============================================================================
@@ -241,7 +240,9 @@ class TestInterpBasic:
         M = 50
         nf = 64
         x = jnp.array(rng.uniform(-np.pi, np.pi, M).astype(np.float64))
-        fw = jnp.array((rng.standard_normal(nf) + 1j * rng.standard_normal(nf)).astype(np.complex128))
+        fw = jnp.array(
+            (rng.standard_normal(nf) + 1j * rng.standard_normal(nf)).astype(np.complex128)
+        )
 
         c = interp_1d(x, fw, nf, kernel_params)
         assert c.dtype == jnp.complex128
@@ -287,7 +288,6 @@ class TestInterpCorrectness:
         # All values should be similar (kernel integral)
         # They won't be exactly 1 because the kernel doesn't integrate to 1
         assert np.std(np.abs(c)) / np.mean(np.abs(c)) < 0.1
-
 
 
 # ============================================================================
@@ -403,7 +403,9 @@ class TestSpreadJAXTransforms:
         nf = 64
 
         x = jnp.array(rng.uniform(-np.pi, np.pi, M))
-        c_batch = jnp.array(rng.standard_normal((batch_size, M)) + 1j * rng.standard_normal((batch_size, M)))
+        c_batch = jnp.array(
+            rng.standard_normal((batch_size, M)) + 1j * rng.standard_normal((batch_size, M))
+        )
 
         batched_spread = jax.vmap(lambda c: spread_1d(x, c, nf, kernel_params))
         fw_batch = batched_spread(c_batch)
@@ -483,7 +485,9 @@ class TestSpread3D:
         y = jnp.array(rng.uniform(-np.pi, np.pi, M))
         z = jnp.array(rng.uniform(-np.pi, np.pi, M))
         c = jnp.array(rng.standard_normal(M) + 1j * rng.standard_normal(M))
-        fw = jnp.array(rng.standard_normal((nf1, nf2, nf3)) + 1j * rng.standard_normal((nf1, nf2, nf3)))
+        fw = jnp.array(
+            rng.standard_normal((nf1, nf2, nf3)) + 1j * rng.standard_normal((nf1, nf2, nf3))
+        )
 
         spread_c = spread_3d(x, y, z, c, nf1, nf2, nf3, kernel_params)
         interp_fw = interp_3d(x, y, z, fw, nf1, nf2, nf3, kernel_params)
