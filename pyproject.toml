@@ -33,6 +33,7 @@ dev = [
     "finufft>=2.0",  # For comparison testing
     "numpy>=1.20",
     "ruff>=0.4.0",
+    "pre-commit>=3.0",
 ]
 docs = [
     "sphinx>=7.0",
@@ -77,3 +78,7 @@ target-version = "py39"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Notebooks often have config before imports and use lambdas for brevity
+"*.ipynb" = ["E402", "E731", "B007", "N816"]

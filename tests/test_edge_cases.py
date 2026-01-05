@@ -83,7 +83,7 @@ class TestSpecialCoordinates:
         # Check DC component (k=0) is M
         np.testing.assert_allclose(jnp.abs(result[N // 2]), M, rtol=1e-5)
         # Check all other modes are close to 0
-        other_modes = jnp.concatenate([result[:N // 2], result[N // 2 + 1:]])
+        other_modes = jnp.concatenate([result[: N // 2], result[N // 2 + 1 :]])
         np.testing.assert_allclose(jnp.abs(other_modes), 0.0, atol=1e-4)
 
     def test_negative_coordinates(self):
@@ -91,7 +91,9 @@ class TestSpecialCoordinates:
         M, N = 30, 16  # Small size for direct computation
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=0.0).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -108,7 +110,9 @@ class TestSpecialCoordinates:
         key = jax.random.PRNGKey(42)
         # Coordinates in [pi, 3*pi)
         x = jax.random.uniform(key, (M,), minval=jnp.pi, maxval=3 * jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -164,8 +168,12 @@ class TestSpecialStrengths:
         for k in range(1, N // 2):
             f_neg_k = result[N // 2 - k]  # f[-k]
             f_pos_k = result[N // 2 + k]  # f[k]
-            np.testing.assert_allclose(f_neg_k, jnp.conj(f_pos_k), rtol=1e-5,
-                                       err_msg=f"Conjugate symmetry violated at k={k}")
+            np.testing.assert_allclose(
+                f_neg_k,
+                jnp.conj(f_pos_k),
+                rtol=1e-5,
+                err_msg=f"Conjugate symmetry violated at k={k}",
+            )
 
     def test_purely_imaginary_strengths(self):
         """Test with purely imaginary strengths - verify anti-conjugate symmetry f[-k] = -conj(f[k])."""
@@ -181,8 +189,12 @@ class TestSpecialStrengths:
         for k in range(1, N // 2):
             f_neg_k = result[N // 2 - k]  # f[-k]
             f_pos_k = result[N // 2 + k]  # f[k]
-            np.testing.assert_allclose(f_neg_k, -jnp.conj(f_pos_k), rtol=1e-5,
-                                       err_msg=f"Anti-conjugate symmetry violated at k={k}")
+            np.testing.assert_allclose(
+                f_neg_k,
+                -jnp.conj(f_pos_k),
+                rtol=1e-5,
+                err_msg=f"Anti-conjugate symmetry violated at k={k}",
+            )
 
 
 class TestDifferentSizes:
@@ -194,7 +206,9 @@ class TestDifferentSizes:
         M = 100
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -207,7 +221,9 @@ class TestDifferentSizes:
         N = 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -219,7 +235,9 @@ class TestDifferentSizes:
         M, N = 10000, 16
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -230,7 +248,9 @@ class TestDifferentSizes:
         M, N = 10, 256
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -246,7 +266,9 @@ class TestTolerances:
         M, N = 100, 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=eps)
@@ -258,7 +280,9 @@ class TestTolerances:
         M, N = 50, 32  # Small for direct computation
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         # Direct computation
@@ -283,7 +307,9 @@ class TestModeOrdering:
         M, N = 100, 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -299,7 +325,9 @@ class TestSignConventions:
         M, N = 30, 16  # Small for direct computation
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result_pos = nufft1d1(x, c, N, eps=1e-6, isign=1)  # exp(+ikx)
@@ -345,7 +373,9 @@ class TestMultidimensional:
         # Points on x-axis (y=0)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         y = jnp.zeros(M)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft2d1(x, y, c, (N1, N2), eps=1e-6)
@@ -366,9 +396,9 @@ class TestMultidimensional:
         k1 = jnp.arange(-(N1 // 2), (N1 + 1) // 2)
         k2 = jnp.arange(-(N2 // 2), (N2 + 1) // 2)
         k3 = jnp.arange(-(N3 // 2), (N3 + 1) // 2)
-        expected = c[0] * jnp.exp(1j * (k1[None, None, :] * x[0] +
-                                        k2[None, :, None] * y[0] +
-                                        k3[:, None, None] * z[0]))
+        expected = c[0] * jnp.exp(
+            1j * (k1[None, None, :] * x[0] + k2[None, :, None] * y[0] + k3[:, None, None] * z[0])
+        )
         np.testing.assert_allclose(result, expected, rtol=1e-5)
 
 
@@ -380,7 +410,9 @@ class TestNumericalStability:
         M, N = 100, 64
         # Values very close to pi and -pi
         x = jnp.concatenate([jnp.full(M // 2, jnp.pi - 1e-6), jnp.full(M // 2, -jnp.pi + 1e-6)])
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -393,7 +425,8 @@ class TestNumericalStability:
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         c = (
-            jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+            jax.random.normal(jax.random.PRNGKey(43), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
         ) * 1e-15
         c = c.astype(jnp.complex64)
 
@@ -408,7 +441,8 @@ class TestNumericalStability:
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         c = (
-            jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+            jax.random.normal(jax.random.PRNGKey(43), (M,))
+            + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
         ) * 1e10
         c = c.astype(jnp.complex64)
 

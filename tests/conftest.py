@@ -207,8 +207,14 @@ requires_finufft = pytest.mark.skipif(not _finufft_available(), reason="finufft 
 # Parametrize helpers
 # ============================================================================
 
-precision_params = pytest.mark.parametrize("eps", PRECISION_LEVELS, ids=[f"eps={e}" for e in PRECISION_LEVELS])
+precision_params = pytest.mark.parametrize(
+    "eps", PRECISION_LEVELS, ids=[f"eps={e}" for e in PRECISION_LEVELS]
+)
 
-dtype_params = pytest.mark.parametrize("dtype", [np.float32, np.float64], ids=["float32", "float64"])
+dtype_params = pytest.mark.parametrize(
+    "dtype", [np.float32, np.float64], ids=["float32", "float64"]
+)
 
-complex_dtype_params = pytest.mark.parametrize("dtype", [np.complex64, np.complex128], ids=["complex64", "complex128"])
+complex_dtype_params = pytest.mark.parametrize(
+    "dtype", [np.complex64, np.complex128], ids=["complex64", "complex128"]
+)

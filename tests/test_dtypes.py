@@ -18,9 +18,9 @@ class TestDtypePreservation:
         M, N = 100, 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(jnp.float32) + 1j * jax.random.normal(
-            jax.random.PRNGKey(44), (M,)
-        ).astype(jnp.float32)
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(
+            jnp.float32
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,)).astype(jnp.float32)
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -31,9 +31,9 @@ class TestDtypePreservation:
         M, N = 100, 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        f = jax.random.normal(jax.random.PRNGKey(43), (N,)).astype(jnp.float32) + 1j * jax.random.normal(
-            jax.random.PRNGKey(44), (N,)
-        ).astype(jnp.float32)
+        f = jax.random.normal(jax.random.PRNGKey(43), (N,)).astype(
+            jnp.float32
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(44), (N,)).astype(jnp.float32)
         f = f.astype(jnp.complex64)
 
         result = nufft1d2(x, f, eps=1e-6)
@@ -44,10 +44,12 @@ class TestDtypePreservation:
         M, N = 100, 32
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(44), (M,)).astype(jnp.float32) + 1j * jax.random.normal(
-            jax.random.PRNGKey(45), (M,)
-        ).astype(jnp.float32)
+        y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(
+            jnp.float32
+        )
+        c = jax.random.normal(jax.random.PRNGKey(44), (M,)).astype(
+            jnp.float32
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,)).astype(jnp.float32)
         c = c.astype(jnp.complex64)
 
         result = nufft2d1(x, y, c, (N, N), eps=1e-6)
@@ -68,9 +70,9 @@ class TestDtypeAccuracy:
         M, N = 50, 32  # Small for direct computation
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(jnp.float32) + 1j * jax.random.normal(
-            jax.random.PRNGKey(44), (M,)
-        ).astype(jnp.float32)
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(
+            jnp.float32
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,)).astype(jnp.float32)
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -86,9 +88,9 @@ class TestDtypeAccuracy:
             M, N = 50, 32  # Small for direct computation
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(jnp.float64) + 1j * jax.random.normal(
-                jax.random.PRNGKey(44), (M,)
-            ).astype(jnp.float64)
+            c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(
+                jnp.float64
+            ) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,)).astype(jnp.float64)
             c = c.astype(jnp.complex128)
 
             result = nufft1d1(x, c, N, eps=1e-6)
@@ -103,9 +105,9 @@ class TestDtypeAccuracy:
         M, N = 50, 32
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(real_dtype)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,), dtype=jnp.float32) + 1j * jax.random.normal(
-            jax.random.PRNGKey(44), (M,), dtype=jnp.float32
-        )
+        c = jax.random.normal(
+            jax.random.PRNGKey(43), (M,), dtype=jnp.float32
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,), dtype=jnp.float32)
         c = c.astype(jnp.complex64)
 
         # Just verify it runs
@@ -121,9 +123,9 @@ class TestMixedDtypes:
         M, N = 100, 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(jnp.float32) + 1j * jax.random.normal(
-            jax.random.PRNGKey(44), (M,)
-        ).astype(jnp.float32)
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(
+            jnp.float32
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,)).astype(jnp.float32)
         c = c.astype(jnp.complex64)
 
         result = nufft1d1(x, c, N, eps=1e-6)
@@ -138,9 +140,9 @@ class TestGradientsWithDtypes:
         M, N = 50, 32
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(jnp.float32) + 1j * jax.random.normal(
-            jax.random.PRNGKey(44), (M,)
-        ).astype(jnp.float32)
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(
+            jnp.float32
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,)).astype(jnp.float32)
         c = c.astype(jnp.complex64)
 
         def loss(c):
@@ -155,9 +157,9 @@ class TestGradientsWithDtypes:
         M, N = 50, 32
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float32)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(jnp.float32) + 1j * jax.random.normal(
-            jax.random.PRNGKey(44), (M,)
-        ).astype(jnp.float32)
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)).astype(
+            jnp.float32
+        ) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,)).astype(jnp.float32)
         c = c.astype(jnp.complex64)
 
         def loss(x):
