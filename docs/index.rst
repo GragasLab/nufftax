@@ -81,17 +81,15 @@ JAX Transformation Support
      - ✅
    * - **Type 3** (1D/2D/3D)
      - ✅
-     - ⚠️
-     - ⚠️
      - ✅
-
-✅ = Fully supported | ⚠️ = Work in progress
+     - ✅
+     - ✅
 
 **Differentiable inputs:**
 
 - **Type 1:** ``grad`` w.r.t. ``c`` (strengths) and ``x``, ``y``, ``z`` (coordinates)
 - **Type 2:** ``grad`` w.r.t. ``f`` (Fourier modes) and ``x``, ``y``, ``z`` (coordinates)
-- **Type 3:** ``grad`` w.r.t. ``c`` and coordinates (in development)
+- **Type 3:** ``grad`` w.r.t. ``c`` (strengths), ``x``, ``y``, ``z`` (source coordinates), and ``s``, ``t``, ``u`` (target frequencies)
 
 Quick Example
 -------------

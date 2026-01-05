@@ -15,13 +15,13 @@ JAX Transformation Support
 +------------------+-----+----------+-----+------+
 | Type 1 (1D/2D/3D)|  Y  |    Y     |  Y  |  Y   |
 | Type 2 (1D/2D/3D)|  Y  |    Y     |  Y  |  Y   |
-| Type 3 (1D/2D/3D)|  Y  |   WIP    | WIP |  Y   |
+| Type 3 (1D/2D/3D)|  Y  |    Y     |  Y  |  Y   |
 +------------------+-----+----------+-----+------+
 
 Differentiable inputs:
 - Type 1: grad w.r.t. c (strengths) and x, y, z (coordinates)
 - Type 2: grad w.r.t. f (Fourier modes) and x, y, z (coordinates)
-- Type 3: grad w.r.t. c and coordinates (in development)
+- Type 3: grad w.r.t. c (strengths), x, y, z (source coordinates), and s, t, u (target frequencies)
 
 Main functions:
 - nufft1d1, nufft1d2: 1D NUFFT Type 1 and Type 2
@@ -49,20 +49,26 @@ Example:
 
 __version__ = "0.1.0"
 
-# Type 1 transforms (Nonuniform to Uniform)
-from .transforms.nufft1 import nufft1d1, nufft2d1, nufft3d1
+# Type 1 transforms (Nonuniform to Uniform) - with autodiff support
+# Type 2 transforms (Uniform to Nonuniform) - with autodiff support
+# Type 3 transforms (Nonuniform to Nonuniform) - with autodiff support
+from .transforms.autodiff import (
+    nufft1d1,
+    nufft1d2,
+    nufft1d3,
+    nufft2d1,
+    nufft2d2,
+    nufft2d3,
+    nufft3d1,
+    nufft3d2,
+    nufft3d3,
+)
 
-# Type 2 transforms (Uniform to Nonuniform)
-from .transforms.nufft2 import nufft1d2, nufft2d2, nufft3d2
-
-# Type 3 transforms (Nonuniform to Nonuniform)
+# Type 3 grid size helpers
 from .transforms.nufft3 import (
     compute_type3_grid_size,
     compute_type3_grid_sizes_2d,
     compute_type3_grid_sizes_3d,
-    nufft1d3,
-    nufft2d3,
-    nufft3d3,
 )
 
 __all__ = [

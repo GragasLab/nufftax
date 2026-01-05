@@ -40,14 +40,12 @@ A JAX package for NUFFT already exists: [jax-finufft](https://github.com/flatiro
 |-----------|:-----:|:------------:|:-----:|:------:|
 | **Type 1** (1D/2D/3D) | ✅ | ✅ | ✅ | ✅ |
 | **Type 2** (1D/2D/3D) | ✅ | ✅ | ✅ | ✅ |
-| **Type 3** (1D/2D/3D) | ✅ | ⚠️ | ⚠️ | ✅ |
-
-✅ = Fully supported | ⚠️ = Work in progress
+| **Type 3** (1D/2D/3D) | ✅ | ✅ | ✅ | ✅ |
 
 **Differentiable inputs:**
 - Type 1: `grad` w.r.t. `c` (strengths) and `x, y, z` (coordinates)
 - Type 2: `grad` w.r.t. `f` (Fourier modes) and `x, y, z` (coordinates)
-- Type 3: `grad` w.r.t. `c` and coordinates (in development)
+- Type 3: `grad` w.r.t. `c` (strengths), `x, y, z` (source coordinates), and `s, t, u` (target frequencies)
 
 ## Installation
 
