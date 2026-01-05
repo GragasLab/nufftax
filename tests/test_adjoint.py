@@ -8,7 +8,6 @@ relationship instead, which is what matters for optimization.
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from nufftax.transforms import (
     nufft1d1,
@@ -37,7 +36,9 @@ class TestGradientRelationships:
         M, N = 100, 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         # Gradient w.r.t. c should be well-defined
@@ -56,7 +57,9 @@ class TestGradientRelationships:
         M, N = 100, 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         def loss(x):
@@ -72,7 +75,9 @@ class TestGradientRelationships:
         M, N = 100, 64
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        f = jax.random.normal(jax.random.PRNGKey(43), (N,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (N,))
+        f = jax.random.normal(jax.random.PRNGKey(43), (N,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (N,)
+        )
         f = f.astype(jnp.complex64)
 
         def loss(f):
@@ -98,7 +103,9 @@ class TestSelfAdjointRoundtrip:
         M, N = 128, 128
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(44), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         # Type 1: nonuniform -> uniform
@@ -125,7 +132,9 @@ class TestSelfAdjointRoundtrip:
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(45), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         F = nufft2d1(x, y, c, (N1, N2), eps=1e-6, isign=1)
@@ -145,7 +154,9 @@ class TestSelfAdjointRoundtrip:
         N = 64
         M = N  # Same number of points as modes
         x = jnp.linspace(-jnp.pi, jnp.pi, M, endpoint=False)
-        c = jax.random.normal(jax.random.PRNGKey(42), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(43), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(42), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(43), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         # Type 1 -> Type 2 with uniform spacing should reconstruct well
@@ -166,7 +177,9 @@ class TestGradient2D:
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(45), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         def loss(c):
@@ -183,7 +196,9 @@ class TestGradient2D:
         key = jax.random.PRNGKey(42)
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(45), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         def loss(x, y):
@@ -207,7 +222,9 @@ class TestGradient3D:
         x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi)
         y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi)
         z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi)
-        c = jax.random.normal(jax.random.PRNGKey(45), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
+        c = jax.random.normal(jax.random.PRNGKey(45), (M,)) + 1j * jax.random.normal(
+            jax.random.PRNGKey(46), (M,)
+        )
         c = c.astype(jnp.complex64)
 
         def loss(c):
@@ -233,7 +250,8 @@ class TestGradientFiniteDifference:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex128)
 
             def loss(c):
@@ -268,7 +286,8 @@ class TestGradientFiniteDifference:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex128)
 
             def loss(x):
@@ -298,7 +317,8 @@ class TestGradientFiniteDifference:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             f = (
-                jax.random.normal(jax.random.PRNGKey(43), (N,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (N,))
+                jax.random.normal(jax.random.PRNGKey(43), (N,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (N,))
             ).astype(jnp.complex128)
 
             def loss(f):
@@ -333,7 +353,8 @@ class TestGradientFiniteDifference:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             f = (
-                jax.random.normal(jax.random.PRNGKey(43), (N,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (N,))
+                jax.random.normal(jax.random.PRNGKey(43), (N,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (N,))
             ).astype(jnp.complex128)
 
             def loss(x):
@@ -362,9 +383,12 @@ class TestGradientFiniteDifference:
             M, N1, N2 = 15, 8, 10
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+                jax.random.normal(jax.random.PRNGKey(44), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
             ).astype(jnp.complex128)
 
             def loss(c):
@@ -398,9 +422,12 @@ class TestGradientFiniteDifference:
             M, N1, N2 = 15, 8, 10
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+                jax.random.normal(jax.random.PRNGKey(44), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
             ).astype(jnp.complex128)
 
             def loss_x(x):
@@ -446,7 +473,9 @@ class TestGradientFiniteDifference:
             M, N1, N2 = 15, 8, 10
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             # f has shape (N2, N1) per JAX convention
             f = (
                 jax.random.normal(jax.random.PRNGKey(44), (N2, N1))
@@ -486,7 +515,9 @@ class TestGradientFiniteDifference:
             M, N1, N2 = 15, 8, 10
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             f = (
                 jax.random.normal(jax.random.PRNGKey(44), (N2, N1))
                 + 1j * jax.random.normal(jax.random.PRNGKey(45), (N2, N1))
@@ -533,10 +564,15 @@ class TestGradientFiniteDifference:
             M, N1, N2, N3 = 10, 4, 4, 4
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
+            z = jax.random.uniform(
+                jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(45), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
+                jax.random.normal(jax.random.PRNGKey(45), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
             ).astype(jnp.complex128)
 
             def loss(c):
@@ -570,10 +606,15 @@ class TestGradientFiniteDifference:
             M, N1, N2, N3 = 10, 4, 4, 4
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
+            z = jax.random.uniform(
+                jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(45), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
+                jax.random.normal(jax.random.PRNGKey(45), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
             ).astype(jnp.complex128)
 
             def loss_x(x):
@@ -636,8 +677,12 @@ class TestGradientFiniteDifference:
             M, N1, N2, N3 = 10, 4, 4, 4
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
+            z = jax.random.uniform(
+                jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             # f has shape (N3, N2, N1) per JAX convention
             f = (
                 jax.random.normal(jax.random.PRNGKey(45), (N3, N2, N1))
@@ -673,13 +718,8 @@ class TestGradientFiniteDifference:
                         )
 
 
-@pytest.mark.skip(reason="Type 3 transforms don't have custom VJP implementations yet")
 class TestGradientFiniteDifferenceType3:
-    """Verify Type 3 gradients using finite differences.
-
-    NOTE: These tests are skipped because Type 3 transforms (nufft1d3, nufft2d3, nufft3d3)
-    only have forward pass implementations. Custom VJPs need to be added for gradient support.
-    """
+    """Verify Type 3 gradients using finite differences."""
 
     def test_grad_c_finite_diff_1d_type3(self):
         """Verify gradient w.r.t. c for 1D Type 3 using finite differences."""
@@ -688,9 +728,12 @@ class TestGradientFiniteDifferenceType3:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex128)
-            s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-10, maxval=10).astype(jnp.float64)
+            s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-10, maxval=10).astype(
+                jnp.float64
+            )
 
             # Compute grid size needed for Type 3
             n_modes = compute_type3_grid_size(x, s, eps=1e-10)
@@ -727,9 +770,12 @@ class TestGradientFiniteDifferenceType3:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex128)
-            s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-10, maxval=10).astype(jnp.float64)
+            s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-10, maxval=10).astype(
+                jnp.float64
+            )
 
             # Compute grid size needed for Type 3
             n_modes = compute_type3_grid_size(x, s, eps=1e-10)
@@ -761,9 +807,12 @@ class TestGradientFiniteDifferenceType3:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex128)
-            s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-10, maxval=10).astype(jnp.float64)
+            s = jax.random.uniform(jax.random.PRNGKey(45), (N,), minval=-10, maxval=10).astype(
+                jnp.float64
+            )
 
             # Compute grid size needed for Type 3
             n_modes = compute_type3_grid_size(x, s, eps=1e-10)
@@ -794,12 +843,19 @@ class TestGradientFiniteDifferenceType3:
             M, N = 10, 15
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+                jax.random.normal(jax.random.PRNGKey(44), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
             ).astype(jnp.complex128)
-            s = jax.random.uniform(jax.random.PRNGKey(46), (N,), minval=-10, maxval=10).astype(jnp.float64)
-            t = jax.random.uniform(jax.random.PRNGKey(47), (N,), minval=-10, maxval=10).astype(jnp.float64)
+            s = jax.random.uniform(jax.random.PRNGKey(46), (N,), minval=-10, maxval=10).astype(
+                jnp.float64
+            )
+            t = jax.random.uniform(jax.random.PRNGKey(47), (N,), minval=-10, maxval=10).astype(
+                jnp.float64
+            )
 
             # Compute grid sizes needed for 2D Type 3
             x_extent = float(jnp.max(x) - jnp.min(x)) / 2
@@ -839,12 +895,19 @@ class TestGradientFiniteDifferenceType3:
             M, N = 10, 15
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+                jax.random.normal(jax.random.PRNGKey(44), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
             ).astype(jnp.complex128)
-            s = jax.random.uniform(jax.random.PRNGKey(46), (N,), minval=-10, maxval=10).astype(jnp.float64)
-            t = jax.random.uniform(jax.random.PRNGKey(47), (N,), minval=-10, maxval=10).astype(jnp.float64)
+            s = jax.random.uniform(jax.random.PRNGKey(46), (N,), minval=-10, maxval=10).astype(
+                jnp.float64
+            )
+            t = jax.random.uniform(jax.random.PRNGKey(47), (N,), minval=-10, maxval=10).astype(
+                jnp.float64
+            )
 
             # Compute grid sizes needed for 2D Type 3
             x_extent = float(jnp.max(x) - jnp.min(x)) / 2
@@ -899,16 +962,20 @@ class TestJVPFiniteDifference:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex128)
 
             # Random tangent direction for c
             dc = (
-                jax.random.normal(jax.random.PRNGKey(45), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
+                jax.random.normal(jax.random.PRNGKey(45), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
             ).astype(jnp.complex128)
 
             # Compute JVP
-            primals, tangents = jax.jvp(lambda c: nufft1d1_jvp(x, c, n_modes, eps=1e-10), (c,), (dc,))
+            primals, tangents = jax.jvp(
+                lambda c: nufft1d1_jvp(x, c, n_modes, eps=1e-10), (c,), (dc,)
+            )
 
             # Finite difference approximation
             eps = 1e-7
@@ -931,14 +998,17 @@ class TestJVPFiniteDifference:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex128)
 
             # Random tangent direction for x
             dx = jax.random.normal(jax.random.PRNGKey(47), (M,)).astype(jnp.float64) * 0.1
 
             # Compute JVP
-            primals, tangents = jax.jvp(lambda x: nufft1d1_jvp(x, c, n_modes, eps=1e-10), (x,), (dx,))
+            primals, tangents = jax.jvp(
+                lambda x: nufft1d1_jvp(x, c, n_modes, eps=1e-10), (x,), (dx,)
+            )
 
             # Finite difference approximation
             eps = 1e-7
@@ -961,17 +1031,21 @@ class TestJVPFiniteDifference:
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(43), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
+                jax.random.normal(jax.random.PRNGKey(43), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(44), (M,))
             ).astype(jnp.complex128)
 
             # Random tangent directions
             dx = jax.random.normal(jax.random.PRNGKey(47), (M,)).astype(jnp.float64) * 0.1
             dc = (
-                jax.random.normal(jax.random.PRNGKey(45), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
+                jax.random.normal(jax.random.PRNGKey(45), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
             ).astype(jnp.complex128)
 
             # Compute JVP with both tangents
-            primals, tangents = jax.jvp(lambda x, c: nufft1d1_jvp(x, c, n_modes, eps=1e-10), (x, c), (dx, dc))
+            primals, tangents = jax.jvp(
+                lambda x, c: nufft1d1_jvp(x, c, n_modes, eps=1e-10), (x, c), (dx, dc)
+            )
 
             # Finite difference approximation
             eps = 1e-7
@@ -1071,7 +1145,9 @@ class TestJVPFiniteDifference:
             ).astype(jnp.complex128)
 
             # Compute JVP with both tangents
-            primals, tangents = jax.jvp(lambda x, f: nufft1d2_jvp(x, f, eps=1e-10), (x, f), (dx, df))
+            primals, tangents = jax.jvp(
+                lambda x, f: nufft1d2_jvp(x, f, eps=1e-10), (x, f), (dx, df)
+            )
 
             # Finite difference approximation
             eps = 1e-7
@@ -1098,15 +1174,21 @@ class TestJVPFiniteDifference:
             n_modes = (n1, n2)
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+                jax.random.normal(jax.random.PRNGKey(44), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
             ).astype(jnp.complex128)
             dc = (
-                jax.random.normal(jax.random.PRNGKey(46), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
+                jax.random.normal(jax.random.PRNGKey(46), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(47), (M,))
             ).astype(jnp.complex128)
 
-            primals, tangents = jax.jvp(lambda c: nufft2d1_jvp(x, y, c, n_modes, eps=1e-10), (c,), (dc,))
+            primals, tangents = jax.jvp(
+                lambda c: nufft2d1_jvp(x, y, c, n_modes, eps=1e-10), (c,), (dc,)
+            )
 
             eps = 1e-7
             f_plus = nufft2d1_jvp(x, y, c + eps * dc, n_modes, eps=1e-10)
@@ -1122,14 +1204,19 @@ class TestJVPFiniteDifference:
             n_modes = (n1, n2)
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(44), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
+                jax.random.normal(jax.random.PRNGKey(44), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(45), (M,))
             ).astype(jnp.complex128)
             dx = jax.random.normal(jax.random.PRNGKey(46), (M,)).astype(jnp.float64) * 0.1
             dy = jax.random.normal(jax.random.PRNGKey(47), (M,)).astype(jnp.float64) * 0.1
 
-            primals, tangents = jax.jvp(lambda x, y: nufft2d1_jvp(x, y, c, n_modes, eps=1e-10), (x, y), (dx, dy))
+            primals, tangents = jax.jvp(
+                lambda x, y: nufft2d1_jvp(x, y, c, n_modes, eps=1e-10), (x, y), (dx, dy)
+            )
 
             eps = 1e-7
             f_plus = nufft2d1_jvp(x + eps * dx, y + eps * dy, c, n_modes, eps=1e-10)
@@ -1148,7 +1235,9 @@ class TestJVPFiniteDifference:
             M, n1, n2 = 20, 10, 12
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             f = (
                 jax.random.normal(jax.random.PRNGKey(44), (n2, n1))
                 + 1j * jax.random.normal(jax.random.PRNGKey(45), (n2, n1))
@@ -1173,7 +1262,9 @@ class TestJVPFiniteDifference:
             M, n1, n2 = 20, 10, 12
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             f = (
                 jax.random.normal(jax.random.PRNGKey(44), (n2, n1))
                 + 1j * jax.random.normal(jax.random.PRNGKey(45), (n2, n1))
@@ -1181,7 +1272,9 @@ class TestJVPFiniteDifference:
             dx = jax.random.normal(jax.random.PRNGKey(46), (M,)).astype(jnp.float64) * 0.1
             dy = jax.random.normal(jax.random.PRNGKey(47), (M,)).astype(jnp.float64) * 0.1
 
-            primals, tangents = jax.jvp(lambda x, y: nufft2d2_jvp(x, y, f, eps=1e-10), (x, y), (dx, dy))
+            primals, tangents = jax.jvp(
+                lambda x, y: nufft2d2_jvp(x, y, f, eps=1e-10), (x, y), (dx, dy)
+            )
 
             eps = 1e-7
             c_plus = nufft2d2_jvp(x + eps * dx, y + eps * dy, f, eps=1e-10)
@@ -1201,16 +1294,24 @@ class TestJVPFiniteDifference:
             n_modes = (n1, n2, n3)
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
+            z = jax.random.uniform(
+                jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(45), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
+                jax.random.normal(jax.random.PRNGKey(45), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
             ).astype(jnp.complex128)
             dc = (
-                jax.random.normal(jax.random.PRNGKey(47), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(48), (M,))
+                jax.random.normal(jax.random.PRNGKey(47), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(48), (M,))
             ).astype(jnp.complex128)
 
-            primals, tangents = jax.jvp(lambda c: nufft3d1_jvp(x, y, z, c, n_modes, eps=1e-10), (c,), (dc,))
+            primals, tangents = jax.jvp(
+                lambda c: nufft3d1_jvp(x, y, z, c, n_modes, eps=1e-10), (c,), (dc,)
+            )
 
             eps = 1e-7
             f_plus = nufft3d1_jvp(x, y, z, c + eps * dc, n_modes, eps=1e-10)
@@ -1226,10 +1327,15 @@ class TestJVPFiniteDifference:
             n_modes = (n1, n2, n3)
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
+            z = jax.random.uniform(
+                jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             c = (
-                jax.random.normal(jax.random.PRNGKey(45), (M,)) + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
+                jax.random.normal(jax.random.PRNGKey(45), (M,))
+                + 1j * jax.random.normal(jax.random.PRNGKey(46), (M,))
             ).astype(jnp.complex128)
             dx = jax.random.normal(jax.random.PRNGKey(47), (M,)).astype(jnp.float64) * 0.1
             dy = jax.random.normal(jax.random.PRNGKey(48), (M,)).astype(jnp.float64) * 0.1
@@ -1258,8 +1364,12 @@ class TestJVPFiniteDifference:
             M, n1, n2, n3 = 15, 6, 8, 7
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
+            z = jax.random.uniform(
+                jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             f = (
                 jax.random.normal(jax.random.PRNGKey(45), (n3, n2, n1))
                 + 1j * jax.random.normal(jax.random.PRNGKey(46), (n3, n2, n1))
@@ -1284,8 +1394,12 @@ class TestJVPFiniteDifference:
             M, n1, n2, n3 = 15, 6, 8, 7
             key = jax.random.PRNGKey(42)
             x = jax.random.uniform(key, (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
-            z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi).astype(jnp.float64)
+            y = jax.random.uniform(
+                jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
+            z = jax.random.uniform(
+                jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi
+            ).astype(jnp.float64)
             f = (
                 jax.random.normal(jax.random.PRNGKey(45), (n3, n2, n1))
                 + 1j * jax.random.normal(jax.random.PRNGKey(46), (n3, n2, n1))
@@ -1294,7 +1408,9 @@ class TestJVPFiniteDifference:
             dy = jax.random.normal(jax.random.PRNGKey(48), (M,)).astype(jnp.float64) * 0.1
             dz = jax.random.normal(jax.random.PRNGKey(49), (M,)).astype(jnp.float64) * 0.1
 
-            primals, tangents = jax.jvp(lambda x, y, z: nufft3d2_jvp(x, y, z, f, eps=1e-10), (x, y, z), (dx, dy, dz))
+            primals, tangents = jax.jvp(
+                lambda x, y, z: nufft3d2_jvp(x, y, z, f, eps=1e-10), (x, y, z), (dx, dy, dz)
+            )
 
             eps = 1e-7
             c_plus = nufft3d2_jvp(x + eps * dx, y + eps * dy, z + eps * dz, f, eps=1e-10)
