@@ -38,7 +38,6 @@ A JAX package for NUFFT already exists: `jax-finufft <https://github.com/flatiro
 However, it wraps the C++ FINUFFT library via Foreign Function Interface (FFI), exposing it through custom XLA calls. This approach can lead to:
 
 - **Kernel fusion issues on GPU** — custom XLA calls act as optimization barriers, preventing XLA from fusing operations
-- **JAX version constraints** — requires specific JAX versions (currently < 0.8)
 - **CUDA version matching** — GPU support requires matching CUDA versions between JAX and the library
 
 **nufftax** takes a different approach — pure JAX implementation:
@@ -55,8 +54,6 @@ However, it wraps the C++ FINUFFT library via Foreign Function Interface (FFI), 
      - Works with ``jit``, ``grad``, ``vmap``, ``jvp``, ``vjp`` with no FFI barriers
    * - **GPU ready**
      - Runs on CPU/GPU without code changes, benefits from XLA fusion
-   * - **No version constraints**
-     - Works with any JAX version
    * - **No compilation step**
      - Pure Python/JAX - no C++ extensions to build
 
