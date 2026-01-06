@@ -95,4 +95,14 @@ If you use nufftax in your research, please cite:
   url = {https://github.com/geoffroyO/nufftax},
   year = {2025}
 }
+
+@article{finufft,
+  author = {Barnett, Alexander H. and Magland, Jeremy F. and af Klinteberg, Ludvig},
+  title = {A parallel non-uniform fast Fourier transform library based on an ``exponential of semicircle'' kernel},
+  journal = {SIAM J. Sci. Comput.},
+  volume = {41},
+  number = {5},
+  pages = {C479--C504},
+  year = {2019}
+}
 ```
