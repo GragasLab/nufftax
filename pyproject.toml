@@ -10,7 +10,8 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
 authors = [
-    {name = "Geoffroy Oudoumanessah", email = "geoffroy.oudoumanesah@gmail.com"}
+    {name = "Geoffroy Oudoumanessah", email = "geoffroy.oudoumanesah@gmail.com"},
+    {name = "Jacopo Iollo"}
 ]
 keywords = ["jax", "fft", "nufft", "non-uniform", "fourier-transform", "autodiff"]
 classifiers = [
