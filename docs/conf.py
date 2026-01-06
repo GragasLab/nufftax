@@ -1,8 +1,8 @@
 # Configuration file for the Sphinx documentation builder.
 
 project = "nufftax"
-copyright = "2024, Geoffroy Oudoumanessah"
-author = "Geoffroy Oudoumanessah"
+copyright = "2024, Geoffroy Oudoumanessah, Jacopo Iollo"
+author = "Geoffroy Oudoumanessah, Jacopo Iollo"
 release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
