@@ -2,8 +2,6 @@
   <img src="docs/_static/logo.png" alt="nufftax logo" width="200">
 </p>
 
-<h1 align="center">nufftax</h1>
-
 <p align="center">
   <strong>Pure JAX implementation of the Non-Uniform Fast Fourier Transform (NUFFT)</strong>
 </p>
