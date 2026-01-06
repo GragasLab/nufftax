@@ -83,3 +83,16 @@ grad_c = jax.grad(lambda c: jnp.sum(jnp.abs(nufft1d1(x, c, n_modes=32)) ** 2))(c
 ## License
 
 MIT. Algorithm based on [FINUFFT](https://github.com/flatironinstitute/finufft) by the Flatiron Institute.
+
+## Citation
+
+If you use nufftax in your research, please cite:
+
+```bibtex
+@software{nufftax,
+  author = {Oudoumanessah, Geoffroy},
+  title = {nufftax: Pure JAX implementation of the Non-Uniform Fast Fourier Transform},
+  url = {https://github.com/geoffroyO/nufftax},
+  year = {2025}
+}
+```
