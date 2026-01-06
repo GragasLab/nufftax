@@ -91,7 +91,7 @@ If you use nufftax in your research, please cite:
   author = {Oudoumanessah, Geoffroy and Iollo, Jacopo},
   title = {nufftax: Pure JAX implementation of the Non-Uniform Fast Fourier Transform},
   url = {https://github.com/geoffroyO/nufftax},
-  year = {2025}
+  year = {2026}
 }
 
 @article{finufft,
