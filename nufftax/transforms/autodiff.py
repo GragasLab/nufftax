@@ -589,7 +589,7 @@ def _nufft2d2_impl(x: Array, y: Array, f: Array, eps: float = 1e-6, isign: int =
     return nufft2d2_fast(x, y, f, eps, isign)
 
 
-@jax.custom_vjp
+@partial(jax.custom_vjp, nondiff_argnums=(3, 4, 5))
 def nufft2d1(x: Array, y: Array, c: Array, n_modes: tuple[int, int], eps: float = 1e-6, isign: int = 1) -> Array:
     """
     2D Type 1 NUFFT with custom gradients.
@@ -604,17 +604,21 @@ def nufft2d1(x: Array, y: Array, c: Array, n_modes: tuple[int, int], eps: float 
 
     Returns:
         f: Fourier coefficients, shape (n2, n1)
+
+    Note: With nondiff_argnums=(3, 4, 5), the signature is:
+    (diff_args..., nondiff_args...) = (x, y, c, n_modes, eps, isign)
     """
     return _nufft2d1_impl(x, y, c, n_modes, eps, isign)
 
 
 def _nufft2d1_fwd(x, y, c, n_modes, eps, isign):
     f = _nufft2d1_impl(x, y, c, n_modes, eps, isign)
-    return f, (x, y, c, n_modes, eps, isign)
+    # Only save diff args (x, y, c)
+    return f, (x, y, c)
 
 
-def _nufft2d1_bwd(res, g):
-    x, y, c, n_modes, eps, isign = res
+def _nufft2d1_bwd(n_modes, eps, isign, res, g):
+    x, y, c = res
     n1, n2 = n_modes
 
     # Conjugate g for correct gradient through holomorphic function
@@ -636,13 +640,13 @@ def _nufft2d1_bwd(res, g):
     dy_complex = _nufft2d2_impl(x, y, k2_g, eps, -isign)
     dy = jnp.real(jnp.conj(c) * (-1j) * isign * dy_complex)
 
-    return (dx, dy, dc, None, None, None)
+    return (dx, dy, dc)
 
 
 nufft2d1.defvjp(_nufft2d1_fwd, _nufft2d1_bwd)
 
 
-@jax.custom_vjp
+@partial(jax.custom_vjp, nondiff_argnums=(3, 4))
 def nufft2d2(x: Array, y: Array, f: Array, eps: float = 1e-6, isign: int = -1) -> Array:
     """
     2D Type 2 NUFFT with custom gradients.
@@ -656,17 +660,21 @@ def nufft2d2(x: Array, y: Array, f: Array, eps: float = 1e-6, isign: int = -1) -
 
     Returns:
         c: Complex values at nonuniform points, shape (M,)
+
+    Note: With nondiff_argnums=(3, 4), the signature is:
+    (diff_args..., nondiff_args...) = (x, y, f, eps, isign)
     """
     return _nufft2d2_impl(x, y, f, eps, isign)
 
 
 def _nufft2d2_fwd(x, y, f, eps, isign):
     c = _nufft2d2_impl(x, y, f, eps, isign)
-    return c, (x, y, f, eps, isign)
+    # Only save diff args (x, y, f)
+    return c, (x, y, f)
 
 
-def _nufft2d2_bwd(res, g):
-    x, y, f, eps, isign = res
+def _nufft2d2_bwd(eps, isign, res, g):
+    x, y, f = res
     # f has shape (n2, n1): y-axis is axis 0, x-axis is axis 1
     n2, n1 = f.shape
 
@@ -690,7 +698,7 @@ def _nufft2d2_bwd(res, g):
     dy_complex = _nufft2d2_impl(x, y, k2_f, eps, -isign)
     dy = jnp.real(g_conj * (-1j) * isign * dy_complex)
 
-    return (dx, dy, df, None, None)
+    return (dx, dy, df)
 
 
 nufft2d2.defvjp(_nufft2d2_fwd, _nufft2d2_bwd)
@@ -723,7 +731,7 @@ def _nufft3d2_impl(x: Array, y: Array, z: Array, f: Array, eps: float = 1e-6, is
     return nufft3d2_fast(x, y, z, f, eps, isign)
 
 
-@jax.custom_vjp
+@partial(jax.custom_vjp, nondiff_argnums=(4, 5, 6))
 def nufft3d1(
     x: Array,
     y: Array,
@@ -745,17 +753,21 @@ def nufft3d1(
 
     Returns:
         f: Fourier coefficients, shape (n1, n2, n3)
+
+    Note: With nondiff_argnums=(4, 5, 6), the signature is:
+    (diff_args..., nondiff_args...) = (x, y, z, c, n_modes, eps, isign)
     """
     return _nufft3d1_impl(x, y, z, c, n_modes, eps, isign)
 
 
 def _nufft3d1_fwd(x, y, z, c, n_modes, eps, isign):
     f = _nufft3d1_impl(x, y, z, c, n_modes, eps, isign)
-    return f, (x, y, z, c, n_modes, eps, isign)
+    # Only save diff args (x, y, z, c)
+    return f, (x, y, z, c)
 
 
-def _nufft3d1_bwd(res, g):
-    x, y, z, c, n_modes, eps, isign = res
+def _nufft3d1_bwd(n_modes, eps, isign, res, g):
+    x, y, z, c = res
     n1, n2, n3 = n_modes
 
     # Conjugate g for correct gradient through holomorphic function
@@ -783,13 +795,13 @@ def _nufft3d1_bwd(res, g):
     dz_complex = _nufft3d2_impl(x, y, z, k3_g, eps, -isign)
     dz = jnp.real(jnp.conj(c) * (-1j) * isign * dz_complex)
 
-    return (dx, dy, dz, dc, None, None, None)
+    return (dx, dy, dz, dc)
 
 
 nufft3d1.defvjp(_nufft3d1_fwd, _nufft3d1_bwd)
 
 
-@jax.custom_vjp
+@partial(jax.custom_vjp, nondiff_argnums=(4, 5))
 def nufft3d2(x: Array, y: Array, z: Array, f: Array, eps: float = 1e-6, isign: int = -1) -> Array:
     """
     3D Type 2 NUFFT with custom gradients.
@@ -802,17 +814,21 @@ def nufft3d2(x: Array, y: Array, z: Array, f: Array, eps: float = 1e-6, isign: i
 
     Returns:
         c: Complex values at nonuniform points, shape (M,)
+
+    Note: With nondiff_argnums=(4, 5), the signature is:
+    (diff_args..., nondiff_args...) = (x, y, z, f, eps, isign)
     """
     return _nufft3d2_impl(x, y, z, f, eps, isign)
 
 
 def _nufft3d2_fwd(x, y, z, f, eps, isign):
     c = _nufft3d2_impl(x, y, z, f, eps, isign)
-    return c, (x, y, z, f, eps, isign)
+    # Only save diff args (x, y, z, f)
+    return c, (x, y, z, f)
 
 
-def _nufft3d2_bwd(res, g):
-    x, y, z, f, eps, isign = res
+def _nufft3d2_bwd(eps, isign, res, g):
+    x, y, z, f = res
     # f has shape (n3, n2, n1): z-axis is axis 0, y-axis is axis 1, x-axis is axis 2
     n3, n2, n1 = f.shape
 
@@ -842,7 +858,7 @@ def _nufft3d2_bwd(res, g):
     dz_complex = _nufft3d2_impl(x, y, z, k3_f, eps, -isign)
     dz = jnp.real(g_conj * (-1j) * isign * dz_complex)
 
-    return (dx, dy, dz, df, None, None)
+    return (dx, dy, dz, df)
 
 
 nufft3d2.defvjp(_nufft3d2_fwd, _nufft3d2_bwd)

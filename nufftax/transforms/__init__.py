@@ -1,9 +1,10 @@
 """NUFFT transform functions.
 
-All transforms are JIT-compiled by default for 5-11x speedup.
+All transforms are compatible with JAX's JIT compilation. For best performance,
+wrap your functions with ``@jax.jit`` or use ``jax.jit()`` directly.
 """
 
-# Autodiff-enabled transforms (all JIT-compiled)
+# Autodiff-enabled transforms
 from .autodiff import (
     # Helper functions
     compute_position_gradient_1d,

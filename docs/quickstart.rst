@@ -131,7 +131,8 @@ nufftax supports 2D and 3D:
 JIT Compilation
 ---------------
 
-All nufftax functions are JIT-compiled by default. For custom functions:
+nufftax functions are compatible with JAX's JIT compilation. For best performance,
+wrap your functions with ``@jax.jit``:
 
 .. code-block:: python
 
@@ -142,6 +143,14 @@ All nufftax functions are JIT-compiled by default. For custom functions:
 
    # First call compiles, subsequent calls are fast
    power = my_analysis(x, c)
+
+You can also JIT individual NUFFT calls:
+
+.. code-block:: python
+
+   # JIT a single function with static arguments
+   jitted_nufft = jax.jit(nufft1d1, static_argnames=("n_modes", "eps", "isign"))
+   f = jitted_nufft(x, c, n_modes=64, eps=1e-6)
 
 Precision vs Speed
 ------------------

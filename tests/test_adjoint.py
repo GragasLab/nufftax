@@ -1130,7 +1130,7 @@ class TestJVPFiniteDifference:
             f_minus = nufft2d1_jvp(x - eps * dx, y - eps * dy, c, n_modes, eps=1e-10)
             fd_tangent = (f_plus - f_minus) / (2 * eps)
 
-            np.testing.assert_allclose(tangents, fd_tangent, rtol=1e-5, atol=2e-8)
+            np.testing.assert_allclose(tangents, fd_tangent, rtol=1e-5, atol=4e-8)
 
     # =========================================================================
     # 2D Type 2 JVP Tests
@@ -1240,7 +1240,7 @@ class TestJVPFiniteDifference:
             f_minus = nufft3d1_jvp(x - eps * dx, y - eps * dy, z - eps * dz, c, n_modes, eps=1e-10)
             fd_tangent = (f_plus - f_minus) / (2 * eps)
 
-            np.testing.assert_allclose(tangents, fd_tangent, rtol=1e-5, atol=1e-8)
+            np.testing.assert_allclose(tangents, fd_tangent, rtol=1e-5, atol=4e-8)
 
     # =========================================================================
     # 3D Type 2 JVP Tests

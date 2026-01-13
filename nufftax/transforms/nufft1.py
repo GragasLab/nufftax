@@ -9,8 +9,6 @@ Pipeline: spread -> FFT -> deconvolve
 Reference: FINUFFT finufft_core.cpp
 """
 
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 
@@ -20,7 +18,6 @@ from ..core.spread import spread_1d, spread_2d, spread_3d
 from ..utils.grid import compute_grid_size
 
 
-@partial(jax.jit, static_argnames=("n_modes", "eps", "isign", "upsampfac", "modeord"))
 def nufft1d1(
     x: jax.Array,
     c: jax.Array,
@@ -94,7 +91,6 @@ def nufft1d1(
     return f
 
 
-@partial(jax.jit, static_argnames=("n_modes", "eps", "isign", "upsampfac", "modeord"))
 def nufft2d1(
     x: jax.Array,
     y: jax.Array,
@@ -170,7 +166,6 @@ def nufft2d1(
     return f
 
 
-@partial(jax.jit, static_argnames=("n_modes", "eps", "isign", "upsampfac", "modeord"))
 def nufft3d1(
     x: jax.Array,
     y: jax.Array,

@@ -22,8 +22,6 @@ be static). Use `compute_type3_grid_size()` to pre-compute appropriate values.
 Reference: FINUFFT finufft_core.cpp
 """
 
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 
@@ -242,7 +240,6 @@ def _kernel_ft_at_point(k: jax.Array, nspread: int, beta: float, c: float, dtype
     return phi_hat
 
 
-@partial(jax.jit, static_argnames=("eps", "isign", "upsampfac", "n_modes"))
 def nufft1d3(
     x: jax.Array,
     c: jax.Array,
@@ -334,7 +331,6 @@ def nufft1d3(
     return f
 
 
-@partial(jax.jit, static_argnames=("eps", "isign", "upsampfac", "n_modes"))
 def nufft2d3(
     x: jax.Array,
     y: jax.Array,
@@ -430,7 +426,6 @@ def nufft2d3(
     return f
 
 
-@partial(jax.jit, static_argnames=("eps", "isign", "upsampfac", "n_modes"))
 def nufft3d3(
     x: jax.Array,
     y: jax.Array,
