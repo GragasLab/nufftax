@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nufftax"
-version = "0.2.1"
+version = "0.3.0"
 description = "Pure JAX implementation of Non-Uniform FFT"
 readme = "README.md"
 license = "MIT"
