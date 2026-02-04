@@ -11,8 +11,6 @@ This means:
 
 Mathematical relationships:
 - <nufft1(x, c), f> = <c, nufft2(x, f)>  (adjoint property)
-
-Reference: .claude/agents/autodiff-dev.md
 """
 
 from collections.abc import Callable
