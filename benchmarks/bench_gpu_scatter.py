@@ -222,19 +222,11 @@ def main():
     print(f"\nBasic benchmarks: add.at wins {add_at_wins}, segment_sum wins {segment_sum_wins}")
 
     add_at_wins_nufft = sum(1 for r in results["nufft_benchmarks"] if r["winner"] == "add.at")
-    segment_sum_wins_nufft = sum(
-        1 for r in results["nufft_benchmarks"] if r["winner"] == "segment_sum"
-    )
-    print(
-        f"NUFFT benchmarks: add.at wins {add_at_wins_nufft}, segment_sum wins {segment_sum_wins_nufft}"
-    )
+    segment_sum_wins_nufft = sum(1 for r in results["nufft_benchmarks"] if r["winner"] == "segment_sum")
+    print(f"NUFFT benchmarks: add.at wins {add_at_wins_nufft}, segment_sum wins {segment_sum_wins_nufft}")
 
-    avg_speedup_basic = sum(r["speedup"] for r in results["benchmarks"]) / len(
-        results["benchmarks"]
-    )
-    avg_speedup_nufft = sum(r["speedup"] for r in results["nufft_benchmarks"]) / len(
-        results["nufft_benchmarks"]
-    )
+    avg_speedup_basic = sum(r["speedup"] for r in results["benchmarks"]) / len(results["benchmarks"])
+    avg_speedup_nufft = sum(r["speedup"] for r in results["nufft_benchmarks"]) / len(results["nufft_benchmarks"])
     print("\nAverage speedup (segment_sum vs add.at):")
     print(f"  Basic: {avg_speedup_basic:.2f}x")
     print(f"  NUFFT: {avg_speedup_nufft:.2f}x")
