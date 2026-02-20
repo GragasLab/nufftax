@@ -74,13 +74,48 @@ filterwarnings = [
 ]
 
 [tool.ruff]
-line-length = 100
 target-version = "py312"
+line-length = 119
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP"]
-ignore = ["E501"]
+select = [
+    "E",      # pycodestyle errors
+    "F",      # Pyflakes
+    "I",      # isort
+    "W",      # pycodestyle warnings
+    "UP",     # pyupgrade
+    "FURB",   # refurb
+    "SIM",    # flake8-simplify
+    "S110",   # bandit: try-except-pass
+    "C4",     # flake8-comprehensions
+    "RUF013", # implicit Optional
+    "PERF102",# dict.items() discarding key or value
+    "PLC1802",# len in boolean test
+    "PLC0208",# iteration over set literals
+    "PIE794", # duplicate field definitions
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "E741",   # ambiguous variable name (l, O, I)
+    "SIM1",   # all SIM1XX rules
+    "SIM905", # static str.split replaceable with list literal
+    "UP015",  # redundant open mode
+    "UP031",  # printf-style string formatting
+]
+extend-safe-fixes = [
+    "UP006",  # generic replacements per PEP 585
+]
 
 [tool.ruff.lint.per-file-ignores]
-# Notebooks often have config before imports and use lambdas for brevity
+"__init__.py" = ["E402", "F401", "F403", "F811"]
 "*.ipynb" = ["E402", "E731", "B007", "N816"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+known-first-party = ["nufftax"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -25,6 +25,7 @@ from .spread import (
     spread_3d,
 )
 
+
 __all__ = [
     # Kernel functions
     "es_kernel",

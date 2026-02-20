@@ -17,6 +17,7 @@ from datetime import datetime
 import jax
 import jax.numpy as jnp
 
+
 # Print device info
 print("=" * 70)
 print("GPU SCATTER-ADD BENCHMARK")

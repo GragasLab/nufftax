@@ -13,6 +13,7 @@ import time
 import jax
 import jax.numpy as jnp
 
+
 print(f"JAX version: {jax.__version__}")
 print(f"Device: {jax.devices()[0]}")
 print()

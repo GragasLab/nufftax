@@ -89,6 +89,9 @@ cython_debug/
 # Ruff
 .ruff_cache/
 
+# Lock files (library — consumers manage their own)
+uv.lock
+
 # OS files
 .DS_Store
 Thumbs.db

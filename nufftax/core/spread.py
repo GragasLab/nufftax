@@ -17,6 +17,7 @@ import jax.numpy as jnp
 
 from .kernel import KernelParams, es_kernel, es_kernel_with_derivative
 
+
 # ============================================================================
 # Pallas GPU backend detection
 # ============================================================================
