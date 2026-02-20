@@ -24,15 +24,12 @@ Reference: FINUFFT finufft_core.cpp
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ..core.kernel import compute_kernel_params, es_kernel
 from ..core.spread import spread_1d, spread_2d, spread_3d
+from ..utils.grid import next_smooth_int
 from .nufft2 import nufft1d2, nufft2d2, nufft3d2
-
-
-def _get_imag_unit(c: jax.Array) -> jax.Array:
-    """Get imaginary unit with same dtype as c."""
-    return jnp.array(1j, dtype=c.dtype)
 
 
 def _next_smooth_even(n: int) -> int:
@@ -44,17 +41,10 @@ def _next_smooth_even(n: int) -> int:
         return 2
     if n % 2 == 1:
         n += 1
-    while True:
-        m = n
-        while m % 2 == 0:
-            m //= 2
-        while m % 3 == 0:
-            m //= 3
-        while m % 5 == 0:
-            m //= 5
-        if m == 1:
-            return n
-        n += 2
+    candidate = next_smooth_int(n)
+    while candidate % 2 != 0:
+        candidate = next_smooth_int(candidate + 1)
+    return candidate
 
 
 def compute_type3_grid_size(
@@ -89,8 +79,6 @@ def compute_type3_grid_size(
         >>> # Now use nf in JIT-compiled code:
         >>> f = nufft1d3(x, c, s, n_modes=nf, eps=1e-6)
     """
-    import numpy as np
-
     # Handle array inputs - convert to extents
     x_arr = np.asarray(x_or_x_extent)
     s_arr = np.asarray(s_or_s_extent)
@@ -135,8 +123,6 @@ def compute_type3_grid_sizes_2d(
     Returns:
         (nf1, nf2): Grid sizes for each dimension
     """
-    import numpy as np
-
     kernel_params = compute_kernel_params(eps, upsampfac)
     nspread = kernel_params.nspread
 
@@ -171,8 +157,6 @@ def compute_type3_grid_sizes_3d(
     Returns:
         (nf1, nf2, nf3): Grid sizes for each dimension
     """
-    import numpy as np
-
     kernel_params = compute_kernel_params(eps, upsampfac)
     nspread = kernel_params.nspread
 
@@ -187,17 +171,6 @@ def compute_type3_grid_sizes_3d(
     nf2 = _next_smooth_even(int(np.ceil(2.0 * upsampfac * t_extent * y_extent / np.pi + nspread)))
     nf3 = _next_smooth_even(int(np.ceil(2.0 * upsampfac * u_extent * z_extent / np.pi + nspread)))
     return nf1, nf2, nf3
-
-
-def _get_real_dtype(c: jax.Array):
-    """Get the real dtype corresponding to a complex dtype."""
-    if c.dtype == jnp.complex64:
-        return jnp.float32
-    elif c.dtype == jnp.complex128:
-        return jnp.float64
-    else:
-        # For real inputs, use the same dtype
-        return c.dtype
 
 
 def _kernel_ft_at_point(k: jax.Array, nspread: int, beta: float, c: float, dtype=None) -> jax.Array:
@@ -300,7 +273,7 @@ def nufft1d3(
     x_normalized = jnp.mod(x_rescaled + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Get dtype-appropriate imaginary unit
-    imag_unit = _get_imag_unit(c)
+    imag_unit = jnp.array(1j, dtype=c.dtype)
 
     # Pre-phase: c' = c * exp(isign * i * D * x)
     prephase = jnp.exp(imag_unit * isign * D * x)
@@ -319,7 +292,7 @@ def nufft1d3(
     f = nufft1d2(s_normalized, fw, eps=eps, isign=isign, upsampfac=upsampfac, modeord=0)
 
     # Deconvolution: multiply by 1/phihat(s') * phase_correction
-    real_dtype = _get_real_dtype(c)
+    real_dtype = jnp.finfo(c.dtype).dtype
     phi_hat = _kernel_ft_at_point(s_rescaled, nspread, beta, kc, dtype=real_dtype)
     phase_correction = jnp.exp(imag_unit * isign * (s - D) * C)
     deconv = phase_correction / phi_hat
@@ -395,7 +368,7 @@ def nufft2d3(
     y_normalized = jnp.mod((y - Cy) / gamma2 + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Get dtype-appropriate imaginary unit
-    imag_unit = _get_imag_unit(c)
+    imag_unit = jnp.array(1j, dtype=c.dtype)
 
     # Pre-phase
     prephase = jnp.exp(imag_unit * isign * (Ds * x + Dt * y))
@@ -414,7 +387,7 @@ def nufft2d3(
     f = nufft2d2(s_normalized, t_normalized, fw, eps=eps, isign=isign, upsampfac=upsampfac)
 
     # Deconvolution
-    real_dtype = _get_real_dtype(c)
+    real_dtype = jnp.finfo(c.dtype).dtype
     phi_hat1 = _kernel_ft_at_point(s_rescaled, nspread, beta, kc, dtype=real_dtype)
     phi_hat2 = _kernel_ft_at_point(t_rescaled, nspread, beta, kc, dtype=real_dtype)
     phase_correction = jnp.exp(imag_unit * isign * ((s - Ds) * Cx + (t - Dt) * Cy))
@@ -500,7 +473,7 @@ def nufft3d3(
     z_normalized = jnp.mod((z - Cz) / gamma3 + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Get dtype-appropriate imaginary unit
-    imag_unit = _get_imag_unit(c)
+    imag_unit = jnp.array(1j, dtype=c.dtype)
 
     # Pre-phase
     prephase = jnp.exp(imag_unit * isign * (Ds * x + Dt * y + Du * z))
@@ -529,7 +502,7 @@ def nufft3d3(
     )
 
     # Deconvolution
-    real_dtype = _get_real_dtype(c)
+    real_dtype = jnp.finfo(c.dtype).dtype
     phi_hat1 = _kernel_ft_at_point(s_rescaled, nspread, beta, kc, dtype=real_dtype)
     phi_hat2 = _kernel_ft_at_point(t_rescaled, nspread, beta, kc, dtype=real_dtype)
     phi_hat3 = _kernel_ft_at_point(u_rescaled, nspread, beta, kc, dtype=real_dtype)

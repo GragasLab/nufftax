@@ -6,10 +6,6 @@ wrap your functions with ``@jax.jit`` or use ``jax.jit()`` directly.
 
 # Autodiff-enabled transforms
 from .autodiff import (
-    # Helper functions
-    compute_position_gradient_1d,
-    compute_position_gradient_2d,
-    compute_position_gradient_3d,
     # 1D transforms with custom VJP
     nufft1d1,
     # 1D transforms with custom JVP
@@ -61,8 +57,4 @@ __all__ = [
     "nufft3d1_jvp",
     "nufft3d2_jvp",
     "nufft3d3_jvp",
-    # Gradient helpers
-    "compute_position_gradient_1d",
-    "compute_position_gradient_2d",
-    "compute_position_gradient_3d",
 ]

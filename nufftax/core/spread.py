@@ -410,7 +410,7 @@ def spread_2d_impl(
         kernel_params: Kernel parameters
 
     Returns:
-        fw: Fine grid values, shape (nf1, nf2) or (n_trans, nf1, nf2)
+        fw: Fine grid values, shape (nf2, nf1) or (n_trans, nf2, nf1)
     """
     c_flat, n_trans, is_batched = _prepare_batched_c(c)
 
