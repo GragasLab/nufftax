@@ -54,6 +54,8 @@ However, it wraps the C++ FINUFFT library via Foreign Function Interface (FFI), 
      - Works with ``jit``, ``grad``, ``vmap``, ``jvp``, ``vjp`` with no FFI barriers
    * - **GPU ready**
      - Runs on CPU/GPU without code changes, benefits from XLA fusion
+   * - **Pallas GPU kernels**
+     - Fused Triton spreading kernels with 5–75× speedups on A100/H100
    * - **No compilation step**
      - Pure Python/JAX - no C++ extensions to build
 
@@ -115,19 +117,72 @@ Quick Example
 
    grad_c = jax.grad(loss)(c)
 
+GPU Acceleration
+----------------
+
+On GPU, nufftax automatically dispatches spreading and interpolation to fused
+`Pallas <https://docs.jax.dev/en/latest/pallas/index.html>`_ (Triton) kernels
+when the problem is large enough. This avoids materializing
+O(M × nspread\ :sup:`d`) intermediate tensors and uses atomic scatter-add for
+spreading.
+
+.. list-table::
+   :widths: 30 20 30
+   :header-rows: 1
+
+   * - Operation
+     - Backend
+     - Speedup vs pure JAX
+   * - 1D spread
+     - A100
+     - 5–67× (M ≥ 100K)
+   * - 1D spread
+     - H100
+     - 4–75× (M ≥ 100K)
+   * - 2D spread
+     - A100/H100
+     - 2–3× (M ≥ 100K)
+
+The dispatch is transparent — no code changes required. On CPU or for small
+problems, the pure JAX path is used.
+
 Installation
 ------------
+
+**CPU only:**
 
 .. code-block:: bash
 
    uv pip install nufftax
 
-Or from source:
+**With CUDA 12 GPU support:**
+
+.. code-block:: bash
+
+   uv pip install "nufftax[cuda12]"
+
+**Development install (from source):**
 
 .. code-block:: bash
 
    git clone https://github.com/GragasLab/nufftax.git
-   cd nufftax && uv pip install -e .
+   cd nufftax
+   uv pip install -e ".[dev]"
+
+This installs test dependencies (``pytest``, ``ruff``, ``finufft`` for
+comparison testing, ``pre-commit``).
+
+**Development install with CUDA 12:**
+
+.. code-block:: bash
+
+   uv pip install -e ".[dev,cuda12]"
+
+**With docs dependencies:**
+
+.. code-block:: bash
+
+   uv pip install -e ".[docs]"
 
 Documentation
 -------------

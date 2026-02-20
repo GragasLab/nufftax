@@ -30,6 +30,7 @@ A JAX package for NUFFT already exists: [jax-finufft](https://github.com/flatiro
 - **Fully differentiable** — gradients w.r.t. both values *and* sample locations
 - **Pure JAX** — works with `jit`, `grad`, `vmap`, `jvp`, `vjp` with no FFI barriers
 - **GPU ready** — runs on CPU/GPU without code changes, benefits from XLA fusion
+- **Pallas GPU kernels** — fused Triton spreading kernels with 5-75x speedups on A100/H100
 - **All NUFFT types** — Type 1, 2, 3 in 1D, 2D, 3D
 
 ## JAX Transformation Support
@@ -45,10 +46,52 @@ A JAX package for NUFFT already exists: [jax-finufft](https://github.com/flatiro
 - Type 2: `grad` w.r.t. `f` (Fourier modes) and `x, y, z` (coordinates)
 - Type 3: `grad` w.r.t. `c` (strengths), `x, y, z` (source coordinates), and `s, t, u` (target frequencies)
 
+## GPU Acceleration
+
+On GPU, nufftax automatically dispatches spreading and interpolation to fused [Pallas](https://docs.jax.dev/en/latest/pallas/index.html) (Triton) kernels when the problem is large enough. This avoids materializing O(M × nspread^d) intermediate tensors and uses atomic scatter-add for spreading.
+
+| Operation | Backend | Speedup vs pure JAX |
+|-----------|---------|---------------------|
+| 1D spread | A100 | 5–67x (M ≥ 100K) |
+| 1D spread | H100 | 4–75x (M ≥ 100K) |
+| 2D spread | A100/H100 | 2–3x (M ≥ 100K) |
+
+The dispatch is transparent — no code changes required. On CPU or for small problems, the pure JAX path is used.
+
 ## Installation
+
+**CPU only:**
 
 ```bash
 uv pip install nufftax
+```
+
+**With CUDA 12 GPU support:**
+
+```bash
+uv pip install "nufftax[cuda12]"
+```
+
+**Development install (from source):**
+
+```bash
+git clone https://github.com/GragasLab/nufftax.git
+cd nufftax
+uv pip install -e ".[dev]"
+```
+
+This installs test dependencies (`pytest`, `ruff`, `finufft` for comparison testing, `pre-commit`).
+
+**Development install with CUDA 12:**
+
+```bash
+uv pip install -e ".[dev,cuda12]"
+```
+
+**With docs dependencies:**
+
+```bash
+uv pip install -e ".[docs]"
 ```
 
 ## Quick Example
