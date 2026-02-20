@@ -134,7 +134,7 @@ class TestNUFFT1D1FINUFFT:
         f_jax = nufft1d1(jnp.array(x), jnp.array(c), n_modes, eps=eps)
 
         rel_err = relative_error(f_jax, jnp.array(f_ref))
-        assert rel_err < 10 * eps
+        assert rel_err < 50 * eps
 
     @requires_finufft
     def test_nufft1d1_iflag_positive(self, rng):

@@ -56,22 +56,3 @@ def compute_grid_size(
     """
     nf = max(int(math.ceil(upsampfac * n_modes)), 2 * nspread)
     return next_smooth_int(nf)
-
-
-def compute_grid_size_nd(
-    n_modes: tuple,
-    upsampfac: float,
-    nspread: int,
-) -> tuple:
-    """
-    Compute fine grid sizes for multi-dimensional NUFFT.
-
-    Args:
-        n_modes: Tuple of mode counts (N1,) or (N1, N2) or (N1, N2, N3)
-        upsampfac: Upsampling factor
-        nspread: Kernel width
-
-    Returns:
-        Tuple of fine grid sizes (nf1,) or (nf1, nf2) or (nf1, nf2, nf3)
-    """
-    return tuple(compute_grid_size(nm, upsampfac, nspread) for nm in n_modes)

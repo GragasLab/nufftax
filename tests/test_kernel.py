@@ -14,9 +14,9 @@ from nufftax.core.kernel import (
     KernelParams,
     compute_kernel_params,
     es_kernel,
-    es_kernel_derivative,
     kernel_fourier_series,
 )
+
 
 # ============================================================================
 # Test ES Kernel Evaluation
@@ -139,77 +139,6 @@ class TestESKernel:
                 max_idx = int(jnp.argmax(phi))
                 center_idx = len(z) // 2
                 assert abs(max_idx - center_idx) <= 1, f"Max at {max_idx}, expected near {center_idx}"
-
-
-# ============================================================================
-# Test ES Kernel Derivative
-# ============================================================================
-
-
-class TestESKernelDerivative:
-    """Tests for es_kernel_derivative function."""
-
-    def test_derivative_at_origin(self):
-        """Derivative at z=0 should be 0 (extremum)."""
-        z = jnp.array([0.0])
-        beta = 10.0
-        c = 0.25
-
-        dphi = es_kernel_derivative(z, beta, c)
-        assert_allclose(dphi, 0.0, atol=1e-10)
-
-    def test_derivative_antisymmetry(self):
-        """Derivative should be antisymmetric: phi'(-z) = -phi'(z)."""
-        z = jnp.array([0.1, 0.5, 1.0, 1.5])
-        beta = 12.0
-        c = 0.25
-
-        dphi_pos = es_kernel_derivative(z, beta, c)
-        dphi_neg = es_kernel_derivative(-z, beta, c)
-
-        assert_allclose(dphi_pos, -dphi_neg, rtol=1e-10)
-
-    def test_derivative_numerical(self):
-        """Compare derivative to finite differences."""
-        # Use float64 for numerical precision in finite difference calculation
-        # Enable x64 mode for this test
-        with jax.enable_x64(True):
-            z = jnp.array([0.3, 0.7, 1.2], dtype=jnp.float64)
-            beta = 10.0
-            c = 0.25
-            h = 1e-6
-
-            # Numerical derivative
-            phi_plus = es_kernel(z + h, beta, c)
-            phi_minus = es_kernel(z - h, beta, c)
-            dphi_numerical = (phi_plus - phi_minus) / (2 * h)
-
-            # Analytical derivative
-            dphi_analytical = es_kernel_derivative(z, beta, c)
-
-            assert_allclose(dphi_analytical, dphi_numerical, rtol=1e-8)
-
-    def test_derivative_sign(self):
-        """Derivative should be negative for z > 0 (kernel is decreasing)."""
-        z = jnp.array([0.1, 0.5, 1.0, 1.5])
-        beta = 10.0
-        c = 0.25
-
-        dphi = es_kernel_derivative(z, beta, c)
-        # Where kernel is non-zero, derivative should be negative
-        mask = es_kernel(z, beta, c) > 1e-10
-        assert jnp.all(dphi[mask] <= 0)
-
-    def test_derivative_jit(self):
-        """Derivative should be JIT-compilable."""
-
-        @jax.jit
-        def compute_derivative(z):
-            return es_kernel_derivative(z, 10.0, 0.25)
-
-        z = jnp.linspace(0.1, 1.5, 20)
-        result = compute_derivative(z)
-        assert jnp.all(jnp.isfinite(result))
 
 
 # ============================================================================

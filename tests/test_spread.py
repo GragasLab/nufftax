@@ -14,6 +14,7 @@ from numpy.testing import assert_allclose
 from nufftax.core import interp_1d, interp_2d, interp_3d, spread_1d, spread_2d, spread_3d
 from nufftax.core.kernel import compute_kernel_params
 
+
 # ============================================================================
 # Fixtures
 # ============================================================================

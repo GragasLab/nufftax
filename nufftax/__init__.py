@@ -47,7 +47,7 @@ Example:
     grad_x = jax.grad(lambda x: jnp.sum(jnp.abs(nufft1d1(x, c, 64))**2))(x)
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.1"
 
 # Type 1 transforms (Nonuniform to Uniform) - with autodiff support
 # Type 2 transforms (Uniform to Nonuniform) - with autodiff support
@@ -71,6 +71,10 @@ from .transforms.nufft3 import (
     compute_type3_grid_sizes_3d,
 )
 
+# Centered FFT utilities
+from .utils.fft import fftc, from_complex, ifftc, to_complex
+
+
 __all__ = [
     # Type 1 transforms
     "nufft1d1",
@@ -88,4 +92,9 @@ __all__ = [
     "compute_type3_grid_size",
     "compute_type3_grid_sizes_2d",
     "compute_type3_grid_sizes_3d",
+    # Centered FFT utilities
+    "fftc",
+    "ifftc",
+    "to_complex",
+    "from_complex",
 ]

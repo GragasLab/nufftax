@@ -7,6 +7,7 @@ Default is the ES (Exponential of Semicircle) kernel.
 Reference: FINUFFT include/finufft_common/kernel.h
 """
 
+import math
 from functools import partial
 from typing import NamedTuple
 
@@ -56,38 +57,6 @@ def es_kernel(z: jax.Array, beta: float, c: float) -> jax.Array:
 
     # Zero outside support
     return jnp.where(valid, result, zero)
-
-
-def es_kernel_derivative(z: jax.Array, beta: float, c: float) -> jax.Array:
-    """
-    Derivative of ES kernel with respect to z.
-
-    d/dz phi(z) = -beta * c * z / sqrt(1 - c*z²) * phi(z)
-
-    Args:
-        z: Points in kernel support
-        beta: Shape parameter
-        c: Normalization parameter
-
-    Returns:
-        Kernel derivative values
-    """
-    # Cast all constants to input dtype to prevent float64 promotion
-    dtype = z.dtype
-    beta = jnp.array(beta, dtype=dtype)
-    c = jnp.array(c, dtype=dtype)
-    one = jnp.array(1.0, dtype=dtype)
-    zero = jnp.array(0.0, dtype=dtype)
-    eps = jnp.array(1e-14, dtype=dtype)
-
-    arg = one - c * z * z
-    valid = arg > eps  # Avoid division by zero
-
-    sqrt_arg = jnp.sqrt(jnp.maximum(arg, eps))
-    phi = jnp.exp(beta * (sqrt_arg - one))
-    dphi = -beta * c * z / sqrt_arg * phi
-
-    return jnp.where(valid, dphi, zero)
 
 
 def es_kernel_with_derivative(
@@ -162,8 +131,6 @@ def compute_kernel_params(
     """
     # Heuristic formula for nspread based on tolerance
     # nspread ≈ ceil(log10(1/tol)) + 1
-    import math
-
     log_tol = -math.log10(max(tol, 1e-16))
     nspread = int(math.ceil(log_tol + 1))
     nspread = max(2, min(nspread, max_nspread))

@@ -374,7 +374,9 @@ class TestMultidimensional:
         k1 = jnp.arange(-(N1 // 2), (N1 + 1) // 2)
         k2 = jnp.arange(-(N2 // 2), (N2 + 1) // 2)
         k3 = jnp.arange(-(N3 // 2), (N3 + 1) // 2)
-        expected = c[0] * jnp.exp(1j * (k1[None, None, :] * x[0] + k2[None, :, None] * y[0] + k3[:, None, None] * z[0]))
+        expected = c[0] * jnp.exp(
+            1j * (k1[None, None, :] * x[0] + k2[None, :, None] * y[0] + k3[:, None, None] * z[0])
+        )
         np.testing.assert_allclose(result, expected, rtol=1e-5)
 
 

@@ -53,8 +53,6 @@ def nufft1d1(
     if not batched:
         c = c[None, :]
 
-    n_trans, M = c.shape
-
     # Compute kernel parameters based on tolerance
     kernel_params = compute_kernel_params(eps, upsampfac)
     nspread = kernel_params.nspread
@@ -130,8 +128,6 @@ def nufft2d1(
     if not batched:
         c = c[None, :]
 
-    n_trans, M = c.shape
-
     # Compute kernel parameters
     kernel_params = compute_kernel_params(eps, upsampfac)
     nspread = kernel_params.nspread
@@ -206,8 +202,6 @@ def nufft3d1(
     batched = c.ndim == 2
     if not batched:
         c = c[None, :]
-
-    n_trans, M = c.shape
 
     # Compute kernel parameters
     kernel_params = compute_kernel_params(eps, upsampfac)

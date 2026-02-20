@@ -13,6 +13,7 @@ import time
 import jax
 import jax.numpy as jnp
 
+
 print(f"JAX version: {jax.__version__}")
 print(f"Device: {jax.devices()[0]}")
 print()
@@ -101,9 +102,7 @@ def make_scatter_segment_sum_sorted(grid_size):
         sort_idx = jnp.argsort(indices)
         sorted_indices = indices[sort_idx]
         sorted_values = values[sort_idx]
-        return jax.ops.segment_sum(
-            sorted_values, sorted_indices, num_segments=grid_size, indices_are_sorted=True
-        )
+        return jax.ops.segment_sum(sorted_values, sorted_indices, num_segments=grid_size, indices_are_sorted=True)
 
     return scatter_segment_sum_sorted
 
@@ -183,9 +182,7 @@ def run_benchmarks(M, grid_size, dtype=jnp.float32):
     # Dense matmul (only for small grids)
     if grid_size <= 4096:
         scatter_dense_matmul = make_scatter_dense_matmul(grid_size)
-        results["dense_matmul"] = benchmark(
-            scatter_dense_matmul, (indices, values), name="dense matmul (one-hot)"
-        )
+        results["dense_matmul"] = benchmark(scatter_dense_matmul, (indices, values), name="dense matmul (one-hot)")
 
     # Print summary
     baseline = results["add.at"]

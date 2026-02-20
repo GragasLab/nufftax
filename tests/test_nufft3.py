@@ -8,6 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+
 # Enable float64 for 3D Type 3 tests which need higher precision
 jax.config.update("jax_enable_x64", True)
 

@@ -17,6 +17,27 @@ import jax.numpy as jnp
 
 from .kernel import KernelParams, es_kernel, es_kernel_with_derivative
 
+
+# ============================================================================
+# Pallas GPU backend detection
+# ============================================================================
+
+_HAS_PALLAS_GPU = False
+try:
+    from .pallas_spread import (
+        interp_1d_pallas,
+        interp_2d_pallas,
+        spread_1d_pallas,
+        spread_2d_pallas,
+    )
+
+    _HAS_PALLAS_GPU = any(d.platform == "gpu" for d in jax.devices())
+except ImportError:
+    pass
+
+_PALLAS_MIN_M_SPREAD = 10_000  # Spreading: Pallas wins above this
+_PALLAS_MIN_M_INTERP = 1_000_000  # Interpolation: XLA already efficient, Pallas only helps at large M
+
 # ============================================================================
 # Helper functions
 # ============================================================================
@@ -390,7 +411,7 @@ def spread_2d_impl(
         kernel_params: Kernel parameters
 
     Returns:
-        fw: Fine grid values, shape (nf1, nf2) or (n_trans, nf1, nf2)
+        fw: Fine grid values, shape (nf2, nf1) or (n_trans, nf2, nf1)
     """
     c_flat, n_trans, is_batched = _prepare_batched_c(c)
 
@@ -650,6 +671,49 @@ def interp_3d_impl(
 
 
 # ============================================================================
+# Pallas GPU dispatch helpers
+# ============================================================================
+
+
+def _spread_1d_dispatch(x, c, nf, kernel_params):
+    """Dispatch 1D spreading to Pallas GPU or pure JAX."""
+    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD:
+        if c.ndim == 1:
+            return spread_1d_pallas(x, c, nf, kernel_params)
+        return jax.vmap(lambda ci: spread_1d_pallas(x, ci, nf, kernel_params))(c)
+    return spread_1d_impl(x, c, nf, kernel_params)
+
+
+def _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params):
+    """Dispatch 2D spreading to Pallas GPU or pure JAX."""
+    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD:
+        if c.ndim == 1:
+            return spread_2d_pallas(x, y, c, nf1, nf2, kernel_params)
+        return jax.vmap(lambda ci: spread_2d_pallas(x, y, ci, nf1, nf2, kernel_params))(c)
+    return spread_2d_impl(x, y, c, nf1, nf2, kernel_params)
+
+
+def _interp_1d_dispatch(x, fw, kernel_params):
+    """Dispatch 1D interpolation to Pallas GPU or pure JAX."""
+    M = x.shape[0]
+    if _HAS_PALLAS_GPU and M >= _PALLAS_MIN_M_INTERP:
+        if fw.ndim == 1:
+            return interp_1d_pallas(x, fw, kernel_params)
+        return jax.vmap(lambda fwi: interp_1d_pallas(x, fwi, kernel_params))(fw)
+    return interp_1d_impl(x, fw, kernel_params)
+
+
+def _interp_2d_dispatch(x, y, fw, kernel_params):
+    """Dispatch 2D interpolation to Pallas GPU or pure JAX."""
+    M = x.shape[0]
+    if _HAS_PALLAS_GPU and M >= _PALLAS_MIN_M_INTERP:
+        if fw.ndim == 2:
+            return interp_2d_pallas(x, y, fw, kernel_params)
+        return jax.vmap(lambda fwi: interp_2d_pallas(x, y, fwi, kernel_params))(fw)
+    return interp_2d_impl(x, y, fw, kernel_params)
+
+
+# ============================================================================
 # Public API with Custom VJP
 # ============================================================================
 
@@ -678,12 +742,12 @@ def spread_1d(
     Returns:
         fw: Fine grid values, shape (nf,) or (n_trans, nf)
     """
-    return spread_1d_impl(x, c, nf, kernel_params)
+    return _spread_1d_dispatch(x, c, nf, kernel_params)
 
 
 def spread_1d_fwd(x, c, nf, kernel_params):
     """Forward pass for spread_1d VJP."""
-    result = spread_1d_impl(x, c, nf, kernel_params)
+    result = _spread_1d_dispatch(x, c, nf, kernel_params)
     return result, (x, c)
 
 
@@ -771,12 +835,12 @@ def interp_1d(
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    return interp_1d_impl(x, fw, kernel_params)
+    return _interp_1d_dispatch(x, fw, kernel_params)
 
 
 def interp_1d_fwd(x, fw, nf, kernel_params):
     """Forward pass for interp_1d VJP."""
-    result = interp_1d_impl(x, fw, kernel_params)
+    result = _interp_1d_dispatch(x, fw, kernel_params)
     return result, (x, fw)
 
 
@@ -862,11 +926,11 @@ def spread_2d(
     Returns:
         fw: Fine grid values, shape (nf1, nf2) or (n_trans, nf1, nf2)
     """
-    return spread_2d_impl(x, y, c, nf1, nf2, kernel_params)
+    return _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params)
 
 
 def spread_2d_fwd(x, y, c, nf1, nf2, kernel_params):
-    result = spread_2d_impl(x, y, c, nf1, nf2, kernel_params)
+    result = _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params)
     return result, (x, y, c)
 
 
@@ -961,11 +1025,11 @@ def interp_2d(
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    return interp_2d_impl(x, y, fw, kernel_params)
+    return _interp_2d_dispatch(x, y, fw, kernel_params)
 
 
 def interp_2d_fwd(x, y, fw, nf1, nf2, kernel_params):
-    result = interp_2d_impl(x, y, fw, kernel_params)
+    result = _interp_2d_dispatch(x, y, fw, kernel_params)
     return result, (x, y, fw)
 
 
