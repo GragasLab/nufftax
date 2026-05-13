@@ -25,25 +25,25 @@ from . import nufft2 as _f2
 from . import nufft3 as _f3
 
 
-def _make_source_batcher(prim, source_idx):
-    """Batching rule supporting only the source-arg position batched on a single axis.
+def _make_batcher(prim, impl_fn, source_idx):
+    """Batching rule with a fast path for the common case.
 
-    NUFFT impls natively handle a leading batch axis on the source argument
-    (c for Type 1/3, f for Type 2). vmap over any other input is not yet supported.
+    Fast path (no overhead): only the source arg (c for Type 1/3, f for Type 2)
+    is batched at axis 0. The impl handles a leading batch axis natively.
+
+    Fallback: vmap over the impl function (pure JAX) for any other pattern —
+    notably vmap over coordinates (x/y/z) with shared source.
     """
 
     def batcher(args, dims, **kwargs):
         batched = [i for i, d in enumerate(dims) if d is not batching.not_mapped]
-        if batched != [source_idx]:
-            raise NotImplementedError(
-                f"vmap of {prim.name} is only supported when batching the source "
-                f"argument (positional index {source_idx}); got batched indices {batched}"
-            )
-        args = list(args)
-        d = dims[source_idx]
-        if d != 0:
-            args[source_idx] = jnp.moveaxis(args[source_idx], d, 0)
-        return prim.bind(*args, **kwargs), 0
+        # Fast path: only the source batched at axis 0
+        if batched == [source_idx] and dims[source_idx] == 0:
+            return prim.bind(*args, **kwargs), 0
+        # Generic fallback: vmap-trace through the impl
+        in_axes = tuple(d if d is not batching.not_mapped else None for d in dims)
+        out = jax.vmap(lambda *a: impl_fn(*a, **kwargs), in_axes=in_axes)(*args)
+        return out, 0
 
     return batcher
 
@@ -67,7 +67,7 @@ def _register(prim, impl_fn, aval_fn, jvp_fn, transpose_fn, source_idx):
     mlir.register_lowering(prim, mlir.lower_fun(impl_fn, multiple_results=False))
     ad.primitive_jvps[prim] = jvp_fn
     ad.primitive_transposes[prim] = transpose_fn
-    batching.primitive_batchers[prim] = _make_source_batcher(prim, source_idx)
+    batching.primitive_batchers[prim] = _make_batcher(prim, impl_fn, source_idx)
 
 
 # ============================================================================
