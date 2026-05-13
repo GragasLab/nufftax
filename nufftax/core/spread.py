@@ -27,8 +27,10 @@ try:
     from .pallas_spread import (
         interp_1d_pallas,
         interp_2d_pallas,
+        interp_3d_pallas,
         spread_1d_pallas,
         spread_2d_pallas,
+        spread_3d_pallas,
     )
 
     _HAS_PALLAS_GPU = any(d.platform == "gpu" for d in jax.devices())
@@ -713,6 +715,25 @@ def _interp_2d_dispatch(x, y, fw, kernel_params):
     return interp_2d_impl(x, y, fw, kernel_params)
 
 
+def _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params):
+    """Dispatch 3D spreading to Pallas GPU or pure JAX."""
+    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD:
+        if c.ndim == 1:
+            return spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params)
+        return jax.vmap(lambda ci: spread_3d_pallas(x, y, z, ci, nf1, nf2, nf3, kernel_params))(c)
+    return spread_3d_impl(x, y, z, c, nf1, nf2, nf3, kernel_params)
+
+
+def _interp_3d_dispatch(x, y, z, fw, kernel_params):
+    """Dispatch 3D interpolation to Pallas GPU or pure JAX."""
+    M = x.shape[0]
+    if _HAS_PALLAS_GPU and M >= _PALLAS_MIN_M_INTERP:
+        if fw.ndim == 3:
+            return interp_3d_pallas(x, y, z, fw, kernel_params)
+        return jax.vmap(lambda fwi: interp_3d_pallas(x, y, z, fwi, kernel_params))(fw)
+    return interp_3d_impl(x, y, z, fw, kernel_params)
+
+
 # ============================================================================
 # Public API with Custom VJP
 # ============================================================================
@@ -1129,11 +1150,11 @@ def spread_3d(
     Returns:
         fw: Fine grid values, shape (nf1, nf2, nf3) or (n_trans, nf1, nf2, nf3)
     """
-    return spread_3d_impl(x, y, z, c, nf1, nf2, nf3, kernel_params)
+    return _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params)
 
 
 def spread_3d_fwd(x, y, z, c, nf1, nf2, nf3, kernel_params):
-    result = spread_3d_impl(x, y, z, c, nf1, nf2, nf3, kernel_params)
+    result = _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params)
     return result, (x, y, z, c)
 
 
@@ -1245,11 +1266,11 @@ def interp_3d(
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    return interp_3d_impl(x, y, z, fw, kernel_params)
+    return _interp_3d_dispatch(x, y, z, fw, kernel_params)
 
 
 def interp_3d_fwd(x, y, z, fw, nf1, nf2, nf3, kernel_params):
-    result = interp_3d_impl(x, y, z, fw, kernel_params)
+    result = _interp_3d_dispatch(x, y, z, fw, kernel_params)
     return result, (x, y, z, fw)
 
 

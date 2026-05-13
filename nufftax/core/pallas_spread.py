@@ -364,3 +364,213 @@ def interp_2d_pallas(x, y, fw, kernel_params):
         compiler_params=pltriton.CompilerParams(num_warps=4, num_stages=2),
     )(x_pad, y_pad, fw_real, fw_imag)
     return (c_real[:M] + 1j * c_imag[:M]).astype(fw.dtype)
+
+
+# ============================================================================
+# 3D Spreading
+# ============================================================================
+
+
+def _spread_3d_kernel(
+    x_ref,
+    y_ref,
+    z_ref,
+    c_real_ref,
+    c_imag_ref,
+    fw_real_in_ref,
+    fw_imag_in_ref,
+    fw_real_out_ref,
+    fw_imag_out_ref,
+    *,
+    nf1,
+    nf2,
+    nf3,
+    nspread,
+    beta,
+    c,
+):
+    x, y, z = x_ref[:], y_ref[:], z_ref[:]
+    cr, ci = c_real_ref[:], c_imag_ref[:]
+    x_scaled = _fold_rescale(x, nf1)
+    y_scaled = _fold_rescale(y, nf2)
+    z_scaled = _fold_rescale(z, nf3)
+    i0_x = jnp.ceil(x_scaled - nspread / 2.0).astype(jnp.int32)
+    i0_y = jnp.ceil(y_scaled - nspread / 2.0).astype(jnp.int32)
+    i0_z = jnp.ceil(z_scaled - nspread / 2.0).astype(jnp.int32)
+
+    # Precompute 1D kernel values per axis (separable factorization)
+    wx_vals, idx_x_vals = [], []
+    for kx in range(nspread):
+        idx_x_vals.append((i0_x + kx) % nf1)
+        wx_vals.append(_eval_kernel_1d(i0_x, kx, x_scaled, beta, c))
+    wy_vals, idy_vals = [], []
+    for ky in range(nspread):
+        idy_vals.append((i0_y + ky) % nf2)
+        wy_vals.append(_eval_kernel_1d(i0_y, ky, y_scaled, beta, c))
+    wz_vals, idz_vals = [], []
+    for kz in range(nspread):
+        idz_vals.append((i0_z + kz) % nf3)
+        wz_vals.append(_eval_kernel_1d(i0_z, kz, z_scaled, beta, c))
+
+    nf12 = nf1 * nf2
+    for kz in range(nspread):
+        for ky in range(nspread):
+            wyz = wz_vals[kz] * wy_vals[ky]
+            base = idz_vals[kz] * nf12 + idy_vals[ky] * nf1
+            for kx in range(nspread):
+                w3d = wyz * wx_vals[kx]
+                flat_idx = base + idx_x_vals[kx]
+                pltriton.atomic_add(fw_real_out_ref, flat_idx, cr * w3d)
+                pltriton.atomic_add(fw_imag_out_ref, flat_idx, ci * w3d)
+
+
+def spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params):
+    """3D spreading using fused Pallas kernel with atomic scatter-add."""
+    M = x.shape[0]
+    nf_total = nf1 * nf2 * nf3
+    M_pad = ((M + BLOCK_SIZE - 1) // BLOCK_SIZE) * BLOCK_SIZE
+    x_pad = jnp.pad(x.astype(jnp.float32), (0, M_pad - M))
+    y_pad = jnp.pad(y.astype(jnp.float32), (0, M_pad - M))
+    z_pad = jnp.pad(z.astype(jnp.float32), (0, M_pad - M))
+    c_real_pad = jnp.pad(jnp.real(c).astype(jnp.float32), (0, M_pad - M))
+    c_imag_pad = jnp.pad(jnp.imag(c).astype(jnp.float32), (0, M_pad - M))
+    fw_real_init = jnp.zeros((nf_total,), dtype=jnp.float32)
+    fw_imag_init = jnp.zeros((nf_total,), dtype=jnp.float32)
+
+    kernel_fn = functools.partial(
+        _spread_3d_kernel,
+        nf1=nf1,
+        nf2=nf2,
+        nf3=nf3,
+        nspread=kernel_params.nspread,
+        beta=float(kernel_params.beta),
+        c=float(kernel_params.c),
+    )
+    fw_real, fw_imag = pl.pallas_call(
+        kernel_fn,
+        grid=(M_pad // BLOCK_SIZE,),
+        in_specs=[
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((nf_total,), lambda i: (0,)),
+            pl.BlockSpec((nf_total,), lambda i: (0,)),
+        ],
+        out_specs=[
+            pl.BlockSpec((nf_total,), lambda i: (0,)),
+            pl.BlockSpec((nf_total,), lambda i: (0,)),
+        ],
+        out_shape=[
+            jax.ShapeDtypeStruct((nf_total,), jnp.float32),
+            jax.ShapeDtypeStruct((nf_total,), jnp.float32),
+        ],
+        input_output_aliases={5: 0, 6: 1},
+        compiler_params=pltriton.CompilerParams(num_warps=4, num_stages=2),
+    )(x_pad, y_pad, z_pad, c_real_pad, c_imag_pad, fw_real_init, fw_imag_init)
+    return (fw_real + 1j * fw_imag).astype(c.dtype).reshape(nf3, nf2, nf1)
+
+
+# ============================================================================
+# 3D Interpolation
+# ============================================================================
+
+
+def _interp_3d_kernel(
+    x_ref,
+    y_ref,
+    z_ref,
+    fw_real_ref,
+    fw_imag_ref,
+    c_real_ref,
+    c_imag_ref,
+    *,
+    nf1,
+    nf2,
+    nf3,
+    nspread,
+    beta,
+    c,
+):
+    x, y, z = x_ref[:], y_ref[:], z_ref[:]
+    x_scaled = _fold_rescale(x, nf1)
+    y_scaled = _fold_rescale(y, nf2)
+    z_scaled = _fold_rescale(z, nf3)
+    i0_x = jnp.ceil(x_scaled - nspread / 2.0).astype(jnp.int32)
+    i0_y = jnp.ceil(y_scaled - nspread / 2.0).astype(jnp.int32)
+    i0_z = jnp.ceil(z_scaled - nspread / 2.0).astype(jnp.int32)
+
+    wx_vals, idx_x_vals = [], []
+    for kx in range(nspread):
+        idx_x_vals.append((i0_x + kx) % nf1)
+        wx_vals.append(_eval_kernel_1d(i0_x, kx, x_scaled, beta, c))
+    wy_vals, idy_vals = [], []
+    for ky in range(nspread):
+        idy_vals.append((i0_y + ky) % nf2)
+        wy_vals.append(_eval_kernel_1d(i0_y, ky, y_scaled, beta, c))
+    wz_vals, idz_vals = [], []
+    for kz in range(nspread):
+        idz_vals.append((i0_z + kz) % nf3)
+        wz_vals.append(_eval_kernel_1d(i0_z, kz, z_scaled, beta, c))
+
+    nf12 = nf1 * nf2
+    cr_acc = jnp.zeros_like(x)
+    ci_acc = jnp.zeros_like(x)
+    for kz in range(nspread):
+        for ky in range(nspread):
+            wyz = wz_vals[kz] * wy_vals[ky]
+            base = idz_vals[kz] * nf12 + idy_vals[ky] * nf1
+            for kx in range(nspread):
+                w3d = wyz * wx_vals[kx]
+                flat_idx = base + idx_x_vals[kx]
+                cr_acc = cr_acc + fw_real_ref[flat_idx] * w3d
+                ci_acc = ci_acc + fw_imag_ref[flat_idx] * w3d
+
+    c_real_ref[:] = cr_acc
+    c_imag_ref[:] = ci_acc
+
+
+def interp_3d_pallas(x, y, z, fw, kernel_params):
+    """3D interpolation using fused Pallas kernel (gather, no atomics)."""
+    M = x.shape[0]
+    nf3, nf2, nf1 = fw.shape[-3], fw.shape[-2], fw.shape[-1]
+    nf_total = nf1 * nf2 * nf3
+    M_pad = ((M + BLOCK_SIZE - 1) // BLOCK_SIZE) * BLOCK_SIZE
+    x_pad = jnp.pad(x.astype(jnp.float32), (0, M_pad - M))
+    y_pad = jnp.pad(y.astype(jnp.float32), (0, M_pad - M))
+    z_pad = jnp.pad(z.astype(jnp.float32), (0, M_pad - M))
+    fw_flat = fw.reshape(-1)
+    fw_real = jnp.real(fw_flat).astype(jnp.float32)
+    fw_imag = jnp.imag(fw_flat).astype(jnp.float32)
+
+    kernel_fn = functools.partial(
+        _interp_3d_kernel,
+        nf1=nf1,
+        nf2=nf2,
+        nf3=nf3,
+        nspread=kernel_params.nspread,
+        beta=float(kernel_params.beta),
+        c=float(kernel_params.c),
+    )
+    c_real, c_imag = pl.pallas_call(
+        kernel_fn,
+        grid=(M_pad // BLOCK_SIZE,),
+        in_specs=[
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((nf_total,), lambda i: (0,)),
+            pl.BlockSpec((nf_total,), lambda i: (0,)),
+        ],
+        out_specs=[
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+            pl.BlockSpec((BLOCK_SIZE,), lambda i: (i,)),
+        ],
+        out_shape=[
+            jax.ShapeDtypeStruct((M_pad,), jnp.float32),
+            jax.ShapeDtypeStruct((M_pad,), jnp.float32),
+        ],
+        compiler_params=pltriton.CompilerParams(num_warps=4, num_stages=2),
+    )(x_pad, y_pad, z_pad, fw_real, fw_imag)
+    return (c_real[:M] + 1j * c_imag[:M]).astype(fw.dtype)
