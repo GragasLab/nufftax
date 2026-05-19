@@ -398,30 +398,33 @@ def _spread_3d_kernel(
     i0_y = jnp.ceil(y_scaled - nspread / 2.0).astype(jnp.int32)
     i0_z = jnp.ceil(z_scaled - nspread / 2.0).astype(jnp.int32)
 
-    # Precompute 1D kernel values per axis (separable factorization)
-    wx_vals, idx_x_vals = [], []
-    for kx in range(nspread):
-        idx_x_vals.append((i0_x + kx) % nf1)
-        wx_vals.append(_eval_kernel_1d(i0_x, kx, x_scaled, beta, c))
-    wy_vals, idy_vals = [], []
-    for ky in range(nspread):
-        idy_vals.append((i0_y + ky) % nf2)
-        wy_vals.append(_eval_kernel_1d(i0_y, ky, y_scaled, beta, c))
-    wz_vals, idz_vals = [], []
-    for kz in range(nspread):
-        idz_vals.append((i0_z + kz) % nf3)
-        wz_vals.append(_eval_kernel_1d(i0_z, kz, z_scaled, beta, c))
-
+    # Triton-side nested loops over the nspread^3 footprint. A Python triple
+    # loop here would unroll into ~nspread^3 atomic_add ops and make Triton
+    # compile times explode in 3D. Three nested fori_loops keep the IR small
+    # (one body per axis) while preserving the separable factorization by
+    # hoisting the z/y weights into the outer loop bodies.
     nf12 = nf1 * nf2
-    for kz in range(nspread):
-        for ky in range(nspread):
-            wyz = wz_vals[kz] * wy_vals[ky]
-            base = idz_vals[kz] * nf12 + idy_vals[ky] * nf1
-            for kx in range(nspread):
-                w3d = wyz * wx_vals[kx]
-                flat_idx = base + idx_x_vals[kx]
-                pltriton.atomic_add(fw_real_out_ref, flat_idx, cr * w3d)
-                pltriton.atomic_add(fw_imag_out_ref, flat_idx, ci * w3d)
+
+    def kz_body(kz, _):
+        wz = _eval_kernel_1d(i0_z, kz, z_scaled, beta, c)
+        base_z = ((i0_z + kz) % nf3) * nf12
+
+        def ky_body(ky, _):
+            wyz = wz * _eval_kernel_1d(i0_y, ky, y_scaled, beta, c)
+            base_yz = base_z + ((i0_y + ky) % nf2) * nf1
+
+            def kx_body(kx, _):
+                w = wyz * _eval_kernel_1d(i0_x, kx, x_scaled, beta, c)
+                flat_idx = base_yz + ((i0_x + kx) % nf1)
+                pltriton.atomic_add(fw_real_out_ref, flat_idx, cr * w)
+                pltriton.atomic_add(fw_imag_out_ref, flat_idx, ci * w)
+                return _
+
+            return jax.lax.fori_loop(0, nspread, kx_body, _)
+
+        return jax.lax.fori_loop(0, nspread, ky_body, _)
+
+    jax.lax.fori_loop(0, nspread, kz_body, jnp.int32(0))
 
 
 def spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params):
@@ -501,31 +504,30 @@ def _interp_3d_kernel(
     i0_y = jnp.ceil(y_scaled - nspread / 2.0).astype(jnp.int32)
     i0_z = jnp.ceil(z_scaled - nspread / 2.0).astype(jnp.int32)
 
-    wx_vals, idx_x_vals = [], []
-    for kx in range(nspread):
-        idx_x_vals.append((i0_x + kx) % nf1)
-        wx_vals.append(_eval_kernel_1d(i0_x, kx, x_scaled, beta, c))
-    wy_vals, idy_vals = [], []
-    for ky in range(nspread):
-        idy_vals.append((i0_y + ky) % nf2)
-        wy_vals.append(_eval_kernel_1d(i0_y, ky, y_scaled, beta, c))
-    wz_vals, idz_vals = [], []
-    for kz in range(nspread):
-        idz_vals.append((i0_z + kz) % nf3)
-        wz_vals.append(_eval_kernel_1d(i0_z, kz, z_scaled, beta, c))
-
+    # Triton-side nested loops over the nspread^3 footprint (see
+    # _spread_3d_kernel for the rationale). The (cr, ci) accumulator is
+    # threaded through all three loops as the carry.
     nf12 = nf1 * nf2
-    cr_acc = jnp.zeros_like(x)
-    ci_acc = jnp.zeros_like(x)
-    for kz in range(nspread):
-        for ky in range(nspread):
-            wyz = wz_vals[kz] * wy_vals[ky]
-            base = idz_vals[kz] * nf12 + idy_vals[ky] * nf1
-            for kx in range(nspread):
-                w3d = wyz * wx_vals[kx]
-                flat_idx = base + idx_x_vals[kx]
-                cr_acc = cr_acc + fw_real_ref[flat_idx] * w3d
-                ci_acc = ci_acc + fw_imag_ref[flat_idx] * w3d
+
+    def kz_body(kz, acc):
+        wz = _eval_kernel_1d(i0_z, kz, z_scaled, beta, c)
+        base_z = ((i0_z + kz) % nf3) * nf12
+
+        def ky_body(ky, acc):
+            wyz = wz * _eval_kernel_1d(i0_y, ky, y_scaled, beta, c)
+            base_yz = base_z + ((i0_y + ky) % nf2) * nf1
+
+            def kx_body(kx, acc):
+                cr_acc, ci_acc = acc
+                w = wyz * _eval_kernel_1d(i0_x, kx, x_scaled, beta, c)
+                flat_idx = base_yz + ((i0_x + kx) % nf1)
+                return cr_acc + fw_real_ref[flat_idx] * w, ci_acc + fw_imag_ref[flat_idx] * w
+
+            return jax.lax.fori_loop(0, nspread, kx_body, acc)
+
+        return jax.lax.fori_loop(0, nspread, ky_body, acc)
+
+    cr_acc, ci_acc = jax.lax.fori_loop(0, nspread, kz_body, (jnp.zeros_like(x), jnp.zeros_like(x)))
 
     c_real_ref[:] = cr_acc
     c_imag_ref[:] = ci_acc

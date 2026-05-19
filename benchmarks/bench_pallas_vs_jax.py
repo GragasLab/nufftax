@@ -1,7 +1,7 @@
 """
 Benchmark: Pure JAX vs Pallas GPU kernels for NUFFT.
 
-Compares spread/interp primitives (1D, 2D) and end-to-end NUFFT Type 1 & 2.
+Compares spread/interp primitives (1D, 2D, 3D) and end-to-end NUFFT Type 1 & 2.
 
 Usage:
     python benchmarks/bench_pallas_vs_jax.py
@@ -19,11 +19,18 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
-from nufftax.core.deconvolve import deconvolve_shuffle_1d, deconvolve_shuffle_2d
+from nufftax.core.deconvolve import deconvolve_shuffle_1d, deconvolve_shuffle_2d, deconvolve_shuffle_3d
 from nufftax.core.kernel import compute_kernel_params, kernel_fourier_series
-from nufftax.core.spread import interp_1d_impl, interp_2d_impl, spread_1d_impl, spread_2d_impl
-from nufftax.transforms.nufft1 import nufft1d1, nufft2d1
-from nufftax.transforms.nufft2 import nufft1d2, nufft2d2
+from nufftax.core.spread import (
+    interp_1d_impl,
+    interp_2d_impl,
+    interp_3d_impl,
+    spread_1d_impl,
+    spread_2d_impl,
+    spread_3d_impl,
+)
+from nufftax.transforms.nufft1 import nufft1d1, nufft2d1, nufft3d1
+from nufftax.transforms.nufft2 import nufft1d2, nufft2d2, nufft3d2
 from nufftax.utils.grid import compute_grid_size
 
 
@@ -31,8 +38,10 @@ try:
     from nufftax.core.pallas_spread import (
         interp_1d_pallas,
         interp_2d_pallas,
+        interp_3d_pallas,
         spread_1d_pallas,
         spread_2d_pallas,
+        spread_3d_pallas,
     )
 
     HAS_PALLAS = True
@@ -68,6 +77,30 @@ def _nufft2d1_pallas(x, y, c, n_modes, eps=1e-6, isign=1, upsampfac=2.0, modeord
     fw = spread_2d_pallas(x_normalized, y_normalized, c, nf1, nf2, kernel_params)[None, :, :]
     fw_hat = jnp.fft.ifft2(fw, axes=(-2, -1)) * (nf1 * nf2) if isign > 0 else jnp.fft.fft2(fw, axes=(-2, -1))
     return deconvolve_shuffle_2d(fw_hat, phihat1, phihat2, n_modes1, n_modes2, modeord)[0]
+
+
+def _nufft3d1_pallas(x, y, z, c, n_modes, eps=1e-6, isign=1, upsampfac=2.0, modeord=0):
+    if isinstance(n_modes, int):
+        n_modes1 = n_modes2 = n_modes3 = n_modes
+    else:
+        n_modes1, n_modes2, n_modes3 = n_modes
+    kernel_params = compute_kernel_params(eps, upsampfac)
+    nf1 = compute_grid_size(n_modes1, upsampfac, kernel_params.nspread)
+    nf2 = compute_grid_size(n_modes2, upsampfac, kernel_params.nspread)
+    nf3 = compute_grid_size(n_modes3, upsampfac, kernel_params.nspread)
+    dtype = jnp.real(c).dtype
+    phihat1 = kernel_fourier_series(nf1, kernel_params.nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
+    phihat2 = kernel_fourier_series(nf2, kernel_params.nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
+    phihat3 = kernel_fourier_series(nf3, kernel_params.nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
+    x_normalized = jnp.mod(x + jnp.pi, 2.0 * jnp.pi) - jnp.pi
+    y_normalized = jnp.mod(y + jnp.pi, 2.0 * jnp.pi) - jnp.pi
+    z_normalized = jnp.mod(z + jnp.pi, 2.0 * jnp.pi) - jnp.pi
+    fw = spread_3d_pallas(x_normalized, y_normalized, z_normalized, c, nf1, nf2, nf3, kernel_params)[None, :, :, :]
+    if isign > 0:
+        fw_hat = jnp.fft.ifftn(fw, axes=(-3, -2, -1)) * (nf1 * nf2 * nf3)
+    else:
+        fw_hat = jnp.fft.fftn(fw, axes=(-3, -2, -1))
+    return deconvolve_shuffle_3d(fw_hat, phihat1, phihat2, phihat3, n_modes1, n_modes2, n_modes3, modeord)[0]
 
 
 def check_gpu():
@@ -209,6 +242,63 @@ def bench_interp_2d(M, N1, N2, tol=1e-6, n_runs=20):
     return r
 
 
+def bench_spread_3d(M, N1, N2, N3, tol=1e-6, n_runs=20):
+    kernel_params = compute_kernel_params(tol)
+    nf1 = int(N1 * kernel_params.upsampfac)
+    nf2 = int(N2 * kernel_params.upsampfac)
+    nf3 = int(N3 * kernel_params.upsampfac)
+    x = jax.random.uniform(jax.random.PRNGKey(42), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    c = jax.random.normal(jax.random.PRNGKey(45), (M,), dtype=jnp.complex64)
+    jax_fn = jax.jit(partial(spread_3d_impl, nf1=nf1, nf2=nf2, nf3=nf3, kernel_params=kernel_params))
+    pallas_fn = jax.jit(partial(spread_3d_pallas, nf1=nf1, nf2=nf2, nf3=nf3, kernel_params=kernel_params))
+    t_jax, res_jax = benchmark_fn(jax_fn, x, y, z, c, n_runs=n_runs)
+    t_pallas, res_pallas = benchmark_fn(pallas_fn, x, y, z, c, n_runs=n_runs)
+    r = print_row(f"Spread 3D (M={M:>8,}, N={N1}x{N2}x{N3})", t_jax, t_pallas)
+    check_correctness(res_jax, res_pallas.astype(res_jax.dtype), "spread_3d")
+    return r
+
+
+def bench_interp_3d(M, N1, N2, N3, tol=1e-6, n_runs=20):
+    kernel_params = compute_kernel_params(tol)
+    nf1 = int(N1 * kernel_params.upsampfac)
+    nf2 = int(N2 * kernel_params.upsampfac)
+    nf3 = int(N3 * kernel_params.upsampfac)
+    x = jax.random.uniform(jax.random.PRNGKey(42), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    fw = jax.random.normal(jax.random.PRNGKey(45), (nf3, nf2, nf1), dtype=jnp.complex64)
+    jax_fn = jax.jit(partial(interp_3d_impl, kernel_params=kernel_params))
+    pallas_fn = jax.jit(partial(interp_3d_pallas, kernel_params=kernel_params))
+    t_jax, res_jax = benchmark_fn(jax_fn, x, y, z, fw, n_runs=n_runs)
+    t_pallas, res_pallas = benchmark_fn(pallas_fn, x, y, z, fw, n_runs=n_runs)
+    r = print_row(f"Interp 3D (M={M:>8,}, N={N1}x{N2}x{N3})", t_jax, t_pallas)
+    check_correctness(res_jax, res_pallas.astype(res_jax.dtype), "interp_3d")
+    return r
+
+
+def bench_nufft3d1(M, N1, N2, N3, tol=1e-6, n_runs=20):
+    x = jax.random.uniform(jax.random.PRNGKey(42), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    c = jax.random.normal(jax.random.PRNGKey(45), (M,), dtype=jnp.complex64)
+
+    @jax.jit
+    def jax_fn(x, y, z, c):
+        return nufft3d1(x, y, z, c, n_modes=(N1, N2, N3), eps=tol)
+
+    @jax.jit
+    def pallas_fn(x, y, z, c):
+        return _nufft3d1_pallas(x, y, z, c, n_modes=(N1, N2, N3), eps=tol)
+
+    t_jax, res_jax = benchmark_fn(jax_fn, x, y, z, c, n_runs=n_runs)
+    t_pallas, res_pallas = benchmark_fn(pallas_fn, x, y, z, c, n_runs=n_runs)
+    r = print_row(f"NUFFT3D1  (M={M:>8,}, N={N1}x{N2}x{N3})", t_jax, t_pallas)
+    check_correctness(res_jax, res_pallas, "nufft3d1")
+    return r
+
+
 def bench_nufft1d2(M, N, tol=1e-6, n_runs=20):
     x = jax.random.uniform(jax.random.PRNGKey(42), (M,), minval=-jnp.pi, maxval=jnp.pi)
     f = jax.random.normal(jax.random.PRNGKey(43), (N,), dtype=jnp.complex64)
@@ -233,6 +323,21 @@ def bench_nufft2d2(M, N1, N2, tol=1e-6, n_runs=20):
 
     t, res = benchmark_fn(fn, x, y, f, n_runs=n_runs)
     print(f"  NUFFT2D2  (M={M:>8,}, N={N1}x{N2}): {t:7.3f}ms")
+    return {"ms": t}
+
+
+def bench_nufft3d2(M, N1, N2, N3, tol=1e-6, n_runs=20):
+    x = jax.random.uniform(jax.random.PRNGKey(42), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    y = jax.random.uniform(jax.random.PRNGKey(43), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    z = jax.random.uniform(jax.random.PRNGKey(44), (M,), minval=-jnp.pi, maxval=jnp.pi)
+    f = jax.random.normal(jax.random.PRNGKey(45), (N3, N2, N1), dtype=jnp.complex64)
+
+    @jax.jit
+    def fn(x, y, z, f):
+        return nufft3d2(x, y, z, f, eps=tol)
+
+    t, res = benchmark_fn(fn, x, y, z, f, n_runs=n_runs)
+    print(f"  NUFFT3D2  (M={M:>8,}, N={N1}x{N2}x{N3}): {t:7.3f}ms")
     return {"ms": t}
 
 
@@ -270,6 +375,15 @@ def run_benchmarks():
             print(f"  ERROR M={M}: {e}")
 
     print("\n" + "-" * 75)
+    print("3D SPREADING (varying M, N=32x32x32)")
+    print("-" * 75)
+    for M in [10_000, 100_000, 1_000_000]:
+        try:
+            results[f"spread_3d_M{M}"] = bench_spread_3d(M, N1=32, N2=32, N3=32)
+        except Exception as e:
+            print(f"  ERROR M={M}: {e}")
+
+    print("\n" + "-" * 75)
     print("1D INTERPOLATION (varying M, N=256)")
     print("-" * 75)
     for M in [10_000, 100_000, 1_000_000, 10_000_000]:
@@ -284,6 +398,15 @@ def run_benchmarks():
     for M in [10_000, 100_000, 1_000_000]:
         try:
             results[f"interp_2d_M{M}"] = bench_interp_2d(M, N1=64, N2=64)
+        except Exception as e:
+            print(f"  ERROR M={M}: {e}")
+
+    print("\n" + "-" * 75)
+    print("3D INTERPOLATION (varying M, N=32x32x32)")
+    print("-" * 75)
+    for M in [10_000, 100_000, 1_000_000]:
+        try:
+            results[f"interp_3d_M{M}"] = bench_interp_3d(M, N1=32, N2=32, N3=32)
         except Exception as e:
             print(f"  ERROR M={M}: {e}")
 
@@ -306,6 +429,15 @@ def run_benchmarks():
             print(f"  ERROR M={M}: {e}")
 
     print("\n" + "-" * 75)
+    print("END-TO-END NUFFT TYPE 1 - 3D (varying M, N=32x32x32)")
+    print("-" * 75)
+    for M in [10_000, 100_000, 1_000_000]:
+        try:
+            results[f"nufft3d1_M{M}"] = bench_nufft3d1(M, N1=32, N2=32, N3=32)
+        except Exception as e:
+            print(f"  ERROR M={M}: {e}")
+
+    print("\n" + "-" * 75)
     print("END-TO-END NUFFT TYPE 2 - 1D (auto-dispatch, varying M, N=256)")
     print("-" * 75)
     for M in [10_000, 100_000, 1_000_000]:
@@ -320,6 +452,15 @@ def run_benchmarks():
     for M in [10_000, 100_000, 1_000_000]:
         try:
             bench_nufft2d2(M, N1=64, N2=64)
+        except Exception as e:
+            print(f"  ERROR M={M}: {e}")
+
+    print("\n" + "-" * 75)
+    print("END-TO-END NUFFT TYPE 2 - 3D (auto-dispatch, varying M, N=32x32x32)")
+    print("-" * 75)
+    for M in [10_000, 100_000, 1_000_000]:
+        try:
+            bench_nufft3d2(M, N1=32, N2=32, N3=32)
         except Exception as e:
             print(f"  ERROR M={M}: {e}")
 
