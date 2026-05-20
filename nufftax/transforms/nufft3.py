@@ -27,7 +27,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ..core.kernel import compute_kernel_params, es_kernel
-from ..core.spread import spread_1d, spread_2d, spread_3d
+from ..core.spread import _spread_1d_dispatch, _spread_2d_dispatch, spread_3d_impl
 from ..utils.grid import next_smooth_int
 from .nufft2 import nufft1d2, nufft2d2, nufft3d2
 
@@ -280,7 +280,7 @@ def nufft1d3(
     c_phased = c * prephase[None, :]
 
     # Spread to fine grid (spatial representation)
-    fw = spread_1d(x_normalized, c_phased, nf, kernel_params)
+    fw = _spread_1d_dispatch(x_normalized, c_phased, nf, kernel_params)
 
     # Rescale target frequencies: s' = h * gamma * (s - D)
     s_rescaled = h * gamma * (s - D)
@@ -375,7 +375,7 @@ def nufft2d3(
     c_phased = c * prephase[None, :]
 
     # Spread
-    fw = spread_2d(x_normalized, y_normalized, c_phased, nf1, nf2, kernel_params)
+    fw = _spread_2d_dispatch(x_normalized, y_normalized, c_phased, nf1, nf2, kernel_params)
 
     # Rescale target frequencies
     s_rescaled = h1 * gamma1 * (s - Ds)
@@ -480,7 +480,7 @@ def nufft3d3(
     c_phased = c * prephase[None, :]
 
     # Spread
-    fw = spread_3d(x_normalized, y_normalized, z_normalized, c_phased, nf1, nf2, nf3, kernel_params)
+    fw = spread_3d_impl(x_normalized, y_normalized, z_normalized, c_phased, nf1, nf2, nf3, kernel_params)
 
     # Rescale target frequencies
     s_rescaled = h1 * gamma1 * (s - Ds)

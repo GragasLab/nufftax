@@ -17,8 +17,35 @@ import functools
 
 import jax
 import jax.numpy as jnp
+from jax._src.core import Primitive, ShapedArray
+from jax._src.interpreters import ad as _ad
+from jax._src.interpreters import batching as _batching
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import triton as pltriton
+
+from .spread import (
+    _HAS_PALLAS_GPU,
+    _PALLAS_MIN_M_INTERP,
+    _PALLAS_MIN_M_SPREAD,
+)
+from .spread import (
+    _spread_1d_dispatch as _s1_disp,
+)
+from .spread import (
+    _spread_2d_dispatch as _s2_disp,
+)
+from .spread import (
+    interp_1d_impl as _i1_impl,
+)
+from .spread import (
+    interp_2d_impl as _i2_impl,
+)
+from .spread import (
+    spread_1d_impl as _s1_impl,
+)
+from .spread import (
+    spread_2d_impl as _s2_impl,
+)
 
 
 BLOCK_SIZE = 256
@@ -364,3 +391,145 @@ def interp_2d_pallas(x, y, fw, kernel_params):
         compiler_params=pltriton.CompilerParams(num_warps=4, num_stages=2),
     )(x_pad, y_pad, fw_real, fw_imag)
     return (c_real[:M] + 1j * c_imag[:M]).astype(fw.dtype)
+
+
+# ============================================================================
+# ============================================================================
+# Custom JAX Primitives with transpose rules for Pallas operations
+# ============================================================================
+# spread transposes to interp; interp transposes to spread.
+# Each primitive registers: impl, abstract_eval, transpose, jvp, batch.
+
+
+def _gpu_dispatch(fn, *args):
+    """Run fn(args) unless GPU is available with enough points."""
+    return fn(*args)
+
+
+# ===================================================================
+# 2D Spread  — spread(x, y, c) → grid(nf2, nf1)
+# ===================================================================
+_s2 = Primitive("nufftax_spread_2d")
+_s2.multiple_results = False
+_s2.def_impl(
+    lambda *a, nf1, nf2, kernel_params: (
+        spread_2d_pallas(a[0], a[1], a[2], nf1, nf2, kernel_params)
+        if _HAS_PALLAS_GPU and a[0].ndim > 0 and a[0].shape[0] >= _PALLAS_MIN_M_SPREAD
+        else _s2_impl(a[0], a[1], a[2], nf1, nf2, kernel_params)
+    )
+)
+_s2.def_abstract_eval(lambda *a, nf1, nf2, **_: ShapedArray((nf2, nf1), a[2].dtype))
+_ad.primitive_transposes[_s2] = lambda ct, *a, **p: (
+    jnp.zeros_like(a[0]),
+    jnp.zeros_like(a[1]),
+    _i2_impl(a[0], a[1], ct, p["kernel_params"]),
+)
+_ad.primitive_jvps[_s2] = lambda pt, tt, nf1, nf2, kernel_params: (
+    _s2.impl(*pt, nf1=nf1, nf2=nf2, kernel_params=kernel_params),
+    _s2.impl(
+        *pt[:2], tt[2] if tt[2] is not None else jnp.zeros_like(pt[2]), nf1=nf1, nf2=nf2, kernel_params=kernel_params
+    ),
+)
+_batching.primitive_batchers[_s2] = lambda a, ba, **p: (
+    (jax.vmap(lambda d: _s2.bind(*a[:2], d, **p), 0, 0)(a[2]), ba[2])
+    if ba[2] is not None
+    else (_s2.bind(*a, **p), ba[2])
+)
+
+
+def spread_2d_primitive(x, y, c, nf1, nf2, kp):
+    return _s2.bind(x, y, c, nf1=nf1, nf2=nf2, kernel_params=kp)
+
+
+# ===================================================================
+# 2D Interp — interp(x, y, fw) → points(M)
+# ===================================================================
+_i2 = Primitive("nufftax_interp_2d")
+_i2.multiple_results = False
+_i2.def_impl(
+    lambda *a, kernel_params: (
+        interp_2d_pallas(a[0], a[1], a[2], kernel_params)
+        if _HAS_PALLAS_GPU and a[0].ndim > 0 and a[0].shape[0] >= _PALLAS_MIN_M_INTERP
+        else _i2_impl(a[0], a[1], a[2], kernel_params)
+    )
+)
+_i2.def_abstract_eval(lambda *a, **_: ShapedArray(a[0].shape, a[2].dtype))
+_ad.primitive_transposes[_i2] = lambda ct, *a, **p: (
+    jnp.zeros_like(a[0]),
+    jnp.zeros_like(a[1]),
+    _s2_disp(a[0], a[1], ct, a[2].shape[-1], a[2].shape[-2], p["kernel_params"]),
+)
+_ad.primitive_jvps[_i2] = lambda pt, tt, kernel_params: (
+    _i2.impl(*pt, kernel_params=kernel_params),
+    _i2.impl(*pt[:2], tt[2] if tt[2] is not None else jnp.zeros_like(pt[2]), kernel_params=kernel_params),
+)
+_batching.primitive_batchers[_i2] = lambda a, ba, **p: (
+    (jax.vmap(lambda d: _i2.bind(*a[:2], d, **p), 0, 0)(a[2]), ba[2])
+    if ba[2] is not None
+    else (_i2.bind(*a, **p), ba[2])
+)
+
+
+def interp_2d_primitive(x, y, fw, kp):
+    return _i2.bind(x, y, fw, kernel_params=kp)
+
+
+# ===================================================================
+# 1D Spread  — spread(x, c) → grid(nf)
+# ===================================================================
+_s1 = Primitive("nufftax_spread_1d")
+_s1.multiple_results = False
+_s1.def_impl(
+    lambda *a, nf, kernel_params: (
+        spread_1d_pallas(a[0], a[1], nf, kernel_params)
+        if _HAS_PALLAS_GPU and a[0].ndim > 0 and a[0].shape[0] >= _PALLAS_MIN_M_SPREAD
+        else _s1_impl(a[0], a[1], nf, kernel_params)
+    )
+)
+_s1.def_abstract_eval(lambda *a, nf, **_: ShapedArray((nf,), a[1].dtype))
+_ad.primitive_transposes[_s1] = lambda ct, *a, **p: (jnp.zeros_like(a[0]), _i1_impl(a[0], ct, p["kernel_params"]))
+_ad.primitive_jvps[_s1] = lambda pt, tt, nf, kernel_params: (
+    _s1.impl(*pt, nf=nf, kernel_params=kernel_params),
+    _s1.impl(pt[0], tt[1] if tt[1] is not None else jnp.zeros_like(pt[1]), nf=nf, kernel_params=kernel_params),
+)
+_batching.primitive_batchers[_s1] = lambda a, ba, **p: (
+    (jax.vmap(lambda d: _s1.bind(a[0], d, **p), 0, 0)(a[1]), ba[1])
+    if ba[1] is not None
+    else (_s1.bind(*a, **p), ba[1])
+)
+
+
+def spread_1d_primitive(x, c, nf, kp):
+    return _s1.bind(x, c, nf=nf, kernel_params=kp)
+
+
+# ===================================================================
+# 1D Interp — interp(x, fw) → points(M)
+# ===================================================================
+_i1 = Primitive("nufftax_interp_1d")
+_i1.multiple_results = False
+_i1.def_impl(
+    lambda *a, kernel_params: (
+        interp_1d_pallas(a[0], a[1], kernel_params)
+        if _HAS_PALLAS_GPU and a[0].ndim > 0 and a[0].shape[0] >= _PALLAS_MIN_M_INTERP
+        else _i1_impl(a[0], a[1], kernel_params)
+    )
+)
+_i1.def_abstract_eval(lambda *a, **_: ShapedArray(a[0].shape, a[1].dtype))
+_ad.primitive_transposes[_i1] = lambda ct, *a, **p: (
+    jnp.zeros_like(a[0]),
+    _s1_disp(a[0], ct, nf=a[1].shape[-1], kernel_params=p["kernel_params"]),
+)
+_ad.primitive_jvps[_i1] = lambda pt, tt, kernel_params: (
+    _i1.impl(*pt, kernel_params=kernel_params),
+    _i1.impl(pt[0], tt[1] if tt[1] is not None else jnp.zeros_like(pt[1]), kernel_params=kernel_params),
+)
+_batching.primitive_batchers[_i1] = lambda a, ba, **p: (
+    (jax.vmap(lambda d: _i1.bind(a[0], d, **p), 0, 0)(a[1]), ba[1])
+    if ba[1] is not None
+    else (_i1.bind(*a, **p), ba[1])
+)
+
+
+def interp_1d_primitive(x, fw, kp):
+    return _i1.bind(x, fw, kernel_params=kp)

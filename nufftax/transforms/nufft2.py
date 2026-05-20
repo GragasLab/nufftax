@@ -14,7 +14,7 @@ import jax.numpy as jnp
 
 from ..core.deconvolve import deconvolve_pad_1d, deconvolve_pad_2d, deconvolve_pad_3d
 from ..core.kernel import compute_kernel_params, kernel_fourier_series
-from ..core.spread import interp_1d, interp_2d, interp_3d
+from ..core.spread import _interp_1d_dispatch, _interp_2d_dispatch, interp_3d_impl
 from ..utils.grid import compute_grid_size
 
 
@@ -74,7 +74,7 @@ def nufft1d2(
     x_normalized = jnp.mod(x + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Step 4: Interpolate to nonuniform points
-    c = interp_1d(x_normalized, fw, nf, kernel_params)
+    c = _interp_1d_dispatch(x_normalized, fw, kernel_params)
 
     if not batched:
         c = c[0]
@@ -138,7 +138,7 @@ def nufft2d2(
     y_normalized = jnp.mod(y + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Step 4: Interpolate to nonuniform points
-    c = interp_2d(x_normalized, y_normalized, fw, nf1, nf2, kernel_params)
+    c = _interp_2d_dispatch(x_normalized, y_normalized, fw, kernel_params)
 
     if not batched:
         c = c[0]
@@ -210,7 +210,7 @@ def nufft3d2(
     z_normalized = jnp.mod(z + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Step 4: Interpolate to nonuniform points
-    c = interp_3d(x_normalized, y_normalized, z_normalized, fw, nf1, nf2, nf3, kernel_params)
+    c = interp_3d_impl(x_normalized, y_normalized, z_normalized, fw, kernel_params)
 
     if not batched:
         c = c[0]
