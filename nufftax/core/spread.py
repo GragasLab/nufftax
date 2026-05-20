@@ -24,14 +24,23 @@ from .kernel import KernelParams, es_kernel, es_kernel_with_derivative
 
 _HAS_PALLAS_GPU = False
 try:
-    from . import pallas_spread as _  # noqa: F401 — check Pallas availability
+    from .pallas_spread import (
+        spread_1d_pallas,
+        spread_2d_pallas,
+        spread_3d_pallas,
+    )
 
     _HAS_PALLAS_GPU = any(d.platform == "gpu" for d in jax.devices())
 except ImportError:
     pass
 
-_PALLAS_MIN_M_SPREAD = 10_000  # Spreading: Pallas wins above this
-_PALLAS_MIN_M_INTERP = 1_000_000  # Interpolation: XLA already efficient, Pallas only helps at large M
+# Spreading (Type 1 scatter) on GPU: per-dimension crossover where the fused
+# Pallas kernels overtake the pure-JAX scatter (measured on H100; below the
+# threshold kernel-launch + BLOCK_SIZE padding dominate). Above these points
+# Pallas wins 1.5x to 30x+.
+_PALLAS_MIN_M_SPREAD_1D = 5_000
+_PALLAS_MIN_M_SPREAD_2D = 5_000
+_PALLAS_MIN_M_SPREAD_3D = 10_000
 
 # ============================================================================
 # Helper functions
@@ -671,47 +680,47 @@ def interp_3d_impl(
 
 
 def _spread_1d_dispatch(x, c, nf, kernel_params):
-    """Dispatch 1D spreading to Pallas GPU or pure JAX (via primitive with transpose)."""
-    from .pallas_spread import spread_1d_primitive
-
-    if _HAS_PALLAS_GPU and x.ndim > 0 and x.shape[0] >= _PALLAS_MIN_M_SPREAD:
+    """Dispatch 1D spreading to Pallas GPU or pure JAX."""
+    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD_1D:
         if c.ndim == 1:
-            return spread_1d_primitive(x, c, nf, kernel_params)
-        return jax.vmap(lambda ci: spread_1d_primitive(x, ci, nf, kernel_params))(c)
+            return spread_1d_pallas(x, c, nf, kernel_params)
+        return jax.vmap(lambda ci: spread_1d_pallas(x, ci, nf, kernel_params))(c)
     return spread_1d_impl(x, c, nf, kernel_params)
 
 
 def _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params):
-    """Dispatch 2D spreading to Pallas GPU or pure JAX (via primitive with transpose)."""
-    from .pallas_spread import spread_2d_primitive
-
-    if _HAS_PALLAS_GPU and x.ndim > 0 and x.shape[0] >= _PALLAS_MIN_M_SPREAD:
+    """Dispatch 2D spreading to Pallas GPU or pure JAX."""
+    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD_2D:
         if c.ndim == 1:
-            return spread_2d_primitive(x, y, c, nf1, nf2, kernel_params)
-        return jax.vmap(lambda ci: spread_2d_primitive(x, y, ci, nf1, nf2, kernel_params))(c)
+            return spread_2d_pallas(x, y, c, nf1, nf2, kernel_params)
+        return jax.vmap(lambda ci: spread_2d_pallas(x, y, ci, nf1, nf2, kernel_params))(c)
     return spread_2d_impl(x, y, c, nf1, nf2, kernel_params)
 
 
-def _interp_1d_dispatch(x, fw, kernel_params):
-    """Dispatch 1D interpolation to Pallas GPU or pure JAX (via primitive with transpose)."""
-    from .pallas_spread import interp_1d_primitive
+# Interpolation (Type 2 gather) is left to pure JAX: XLA already fuses the
+# gather+reduce optimally. Benchmarked on H100 the Pallas interp kernels were
+# at best parity (1D/2D) and 2-4x slower in 3D, so they are not used.
 
-    if _HAS_PALLAS_GPU and x.ndim > 0 and x.shape[0] >= _PALLAS_MIN_M_INTERP:
-        if fw.ndim == 1:
-            return interp_1d_primitive(x, fw, kernel_params)
-        return jax.vmap(lambda fwi: interp_1d_primitive(x, fwi, kernel_params))(fw)
+
+def _interp_1d_dispatch(x, fw, kernel_params):
     return interp_1d_impl(x, fw, kernel_params)
 
 
 def _interp_2d_dispatch(x, y, fw, kernel_params):
-    """Dispatch 2D interpolation to Pallas GPU or pure JAX (via primitive with transpose)."""
-    from .pallas_spread import interp_2d_primitive
-
-    if _HAS_PALLAS_GPU and x.ndim > 0 and x.shape[0] >= _PALLAS_MIN_M_INTERP:
-        if fw.ndim == 2:
-            return interp_2d_primitive(x, y, fw, kernel_params)
-        return jax.vmap(lambda fwi: interp_2d_primitive(x, y, fwi, kernel_params))(fw)
     return interp_2d_impl(x, y, fw, kernel_params)
+
+
+def _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params):
+    """Dispatch 3D spreading to Pallas GPU or pure JAX."""
+    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD_3D:
+        if c.ndim == 1:
+            return spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params)
+        return jax.vmap(lambda ci: spread_3d_pallas(x, y, z, ci, nf1, nf2, nf3, kernel_params))(c)
+    return spread_3d_impl(x, y, z, c, nf1, nf2, nf3, kernel_params)
+
+
+def _interp_3d_dispatch(x, y, z, fw, kernel_params):
+    return interp_3d_impl(x, y, z, fw, kernel_params)
 
 
 # ============================================================================
@@ -1130,11 +1139,11 @@ def spread_3d(
     Returns:
         fw: Fine grid values, shape (nf1, nf2, nf3) or (n_trans, nf1, nf2, nf3)
     """
-    return spread_3d_impl(x, y, z, c, nf1, nf2, nf3, kernel_params)
+    return _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params)
 
 
 def spread_3d_fwd(x, y, z, c, nf1, nf2, nf3, kernel_params):
-    result = spread_3d_impl(x, y, z, c, nf1, nf2, nf3, kernel_params)
+    result = _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params)
     return result, (x, y, z, c)
 
 
@@ -1246,11 +1255,11 @@ def interp_3d(
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    return interp_3d_impl(x, y, z, fw, kernel_params)
+    return _interp_3d_dispatch(x, y, z, fw, kernel_params)
 
 
 def interp_3d_fwd(x, y, z, fw, nf1, nf2, nf3, kernel_params):
-    result = interp_3d_impl(x, y, z, fw, kernel_params)
+    result = _interp_3d_dispatch(x, y, z, fw, kernel_params)
     return result, (x, y, z, fw)
 
 

@@ -223,6 +223,9 @@ class TestGradientFiniteDifference:
 
     These tests compare JAX autodiff gradients against numerical finite differences
     to ensure correctness of the VJP implementations.
+
+    Convention: for a real loss L of complex c, jax.grad returns 2*∂L/∂c (Wirtinger),
+    which equals ∂L/∂Re(c) - i*∂L/∂Im(c) — the conjugate of the naïve "fd_real + i*fd_imag".
     """
 
     def test_grad_c_finite_diff_1d_type1(self):
@@ -251,7 +254,7 @@ class TestGradientFiniteDifference:
                 c_minus_i = c.at[i].add(-1j * eps)
                 fd_grad_imag = (loss(c_plus_i) - loss(c_minus_i)) / (2 * eps)
 
-                expected = fd_grad_real + 1j * fd_grad_imag
+                expected = fd_grad_real - 1j * fd_grad_imag
                 np.testing.assert_allclose(
                     grad_c[i],
                     expected,
@@ -316,7 +319,7 @@ class TestGradientFiniteDifference:
                 f_minus_i = f.at[i].add(-1j * eps)
                 fd_grad_imag = (loss(f_plus_i) - loss(f_minus_i)) / (2 * eps)
 
-                expected = fd_grad_real + 1j * fd_grad_imag
+                expected = fd_grad_real - 1j * fd_grad_imag
                 np.testing.assert_allclose(
                     grad_f[i],
                     expected,
@@ -382,7 +385,7 @@ class TestGradientFiniteDifference:
                 c_minus_i = c.at[i].add(-1j * eps)
                 fd_grad_imag = (loss(c_plus_i) - loss(c_minus_i)) / (2 * eps)
 
-                expected = fd_grad_real + 1j * fd_grad_imag
+                expected = fd_grad_real - 1j * fd_grad_imag
                 np.testing.assert_allclose(
                     grad_c[i],
                     expected,
@@ -470,7 +473,7 @@ class TestGradientFiniteDifference:
                     f_minus_i = f.at[i, j].add(-1j * eps)
                     fd_grad_imag = (loss(f_plus_i) - loss(f_minus_i)) / (2 * eps)
 
-                    expected = fd_grad_real + 1j * fd_grad_imag
+                    expected = fd_grad_real - 1j * fd_grad_imag
                     np.testing.assert_allclose(
                         grad_f[i, j],
                         expected,
@@ -554,7 +557,7 @@ class TestGradientFiniteDifference:
                 c_minus_i = c.at[i].add(-1j * eps)
                 fd_grad_imag = (loss(c_plus_i) - loss(c_minus_i)) / (2 * eps)
 
-                expected = fd_grad_real + 1j * fd_grad_imag
+                expected = fd_grad_real - 1j * fd_grad_imag
                 np.testing.assert_allclose(
                     grad_c[i],
                     expected,
@@ -662,7 +665,7 @@ class TestGradientFiniteDifference:
                         f_minus_i = f.at[i, j, k].add(-1j * eps)
                         fd_grad_imag = (loss(f_plus_i) - loss(f_minus_i)) / (2 * eps)
 
-                        expected = fd_grad_real + 1j * fd_grad_imag
+                        expected = fd_grad_real - 1j * fd_grad_imag
                         np.testing.assert_allclose(
                             grad_f[i, j, k],
                             expected,
@@ -705,7 +708,7 @@ class TestGradientFiniteDifferenceType3:
                 c_minus_i = c.at[i].add(-1j * eps)
                 fd_grad_imag = (loss(c_plus_i) - loss(c_minus_i)) / (2 * eps)
 
-                expected = fd_grad_real + 1j * fd_grad_imag
+                expected = fd_grad_real - 1j * fd_grad_imag
                 np.testing.assert_allclose(
                     grad_c[i],
                     expected,
@@ -818,7 +821,7 @@ class TestGradientFiniteDifferenceType3:
                 c_minus_i = c.at[i].add(-1j * eps)
                 fd_grad_imag = (loss(c_plus_i) - loss(c_minus_i)) / (2 * eps)
 
-                expected = fd_grad_real + 1j * fd_grad_imag
+                expected = fd_grad_real - 1j * fd_grad_imag
                 np.testing.assert_allclose(
                     grad_c[i],
                     expected,

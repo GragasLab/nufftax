@@ -616,7 +616,8 @@ class TestNufft3Grad:
             # Imaginary part
             c_plus = c.at[i].add(1j * eps_fd)
             c_minus = c.at[i].add(-1j * eps_fd)
-            grad_fd = grad_fd.at[i].add(1j * (loss(c_plus) - loss(c_minus)) / (2 * eps_fd))
+            # JAX-standard convention: jax.grad = 2*∂L/∂c (Wirtinger) = fd_real - 1j*fd_imag
+            grad_fd = grad_fd.at[i].add(-1j * (loss(c_plus) - loss(c_minus)) / (2 * eps_fd))
 
         rel_error = jnp.linalg.norm(grad_c - grad_fd) / jnp.linalg.norm(grad_fd)
         assert rel_error < 1e-4, f"Gradient error {rel_error} too large"
