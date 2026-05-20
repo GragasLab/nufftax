@@ -683,8 +683,8 @@ def _spread_1d_dispatch(x, c, nf, kernel_params):
     """Dispatch 1D spreading to Pallas GPU or pure JAX."""
     if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD_1D:
         if c.ndim == 1:
-            return spread_1d_primitive(x, c, nf, kernel_params)
-        return jax.vmap(lambda ci: spread_1d_primitive(x, ci, nf, kernel_params))(c)
+            return spread_1d_pallas(x, c, nf, kernel_params)
+        return jax.vmap(lambda ci: spread_1d_pallas(x, ci, nf, kernel_params))(c)
     return spread_1d_impl(x, c, nf, kernel_params)
 
 
@@ -692,8 +692,8 @@ def _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params):
     """Dispatch 2D spreading to Pallas GPU or pure JAX."""
     if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD_2D:
         if c.ndim == 1:
-            return spread_2d_primitive(x, y, c, nf1, nf2, kernel_params)
-        return jax.vmap(lambda ci: spread_2d_primitive(x, y, ci, nf1, nf2, kernel_params))(c)
+            return spread_2d_pallas(x, y, c, nf1, nf2, kernel_params)
+        return jax.vmap(lambda ci: spread_2d_pallas(x, y, ci, nf1, nf2, kernel_params))(c)
     return spread_2d_impl(x, y, c, nf1, nf2, kernel_params)
 
 

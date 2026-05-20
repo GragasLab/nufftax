@@ -27,7 +27,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ..core.kernel import compute_kernel_params, es_kernel
-from ..core.spread import _spread_1d_dispatch, _spread_2d_dispatch, spread_3d_impl
+from ..core.spread import _spread_1d_dispatch, _spread_2d_dispatch, _spread_3d_dispatch
 from ..utils.grid import next_smooth_int
 from .nufft2 import nufft1d2, nufft2d2, nufft3d2
 
@@ -480,7 +480,7 @@ def nufft3d3(
     c_phased = c * prephase[None, :]
 
     # Spread
-    fw = spread_3d_impl(x_normalized, y_normalized, z_normalized, c_phased, nf1, nf2, nf3, kernel_params)
+    fw = _spread_3d_dispatch(x_normalized, y_normalized, z_normalized, c_phased, nf1, nf2, nf3, kernel_params)
 
     # Rescale target frequencies
     s_rescaled = h1 * gamma1 * (s - Ds)

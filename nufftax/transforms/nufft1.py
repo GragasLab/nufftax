@@ -14,7 +14,7 @@ import jax.numpy as jnp
 
 from ..core.deconvolve import deconvolve_shuffle_1d, deconvolve_shuffle_2d, deconvolve_shuffle_3d
 from ..core.kernel import compute_kernel_params, kernel_fourier_series
-from ..core.spread import _spread_1d_dispatch, _spread_2d_dispatch, spread_3d_impl
+from ..core.spread import _spread_1d_dispatch, _spread_2d_dispatch, _spread_3d_dispatch
 from ..utils.grid import compute_grid_size
 
 
@@ -226,7 +226,7 @@ def nufft3d1(
     z_normalized = jnp.mod(z + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Spread to fine grid
-    fw = spread_3d_impl(x_normalized, y_normalized, z_normalized, c, nf1, nf2, nf3, kernel_params)
+    fw = _spread_3d_dispatch(x_normalized, y_normalized, z_normalized, c, nf1, nf2, nf3, kernel_params)
 
     # 3D FFT - sign convention same as 1D
     if isign > 0:
