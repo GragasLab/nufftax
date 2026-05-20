@@ -64,9 +64,9 @@ class TestSpread3dPallas:
 class TestPublicDispatch:
     @gpu_only
     def test_spread_3d_uses_pallas(self):
-        from nufftax.core.spread import _PALLAS_MIN_M_SPREAD, spread_3d
+        from nufftax.core.spread import _PALLAS_MIN_M_SPREAD_3D, spread_3d
 
-        M = max(_PALLAS_MIN_M_SPREAD, 10_000)
+        M = max(_PALLAS_MIN_M_SPREAD_3D, 10_000)
         x, y, z, c, kp = _setup_3d(M=M, nf1=32, nf2=32, nf3=32)
         out = spread_3d(x, y, z, c, 32, 32, 32, kp)
         out_ref = spread_3d_impl(x, y, z, c, 32, 32, 32, kp)

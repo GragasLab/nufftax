@@ -4,7 +4,7 @@ Two things, streamed:
   1. spread Pallas kernel vs pure-JAX `spread_*_impl` (1D/2D/3D) -- the fused
      Triton scatter is the speedup that matters.
   2. end-to-end public NUFFT (Type 1 & 2) on the default path (Pallas spread
-     auto-dispatched on GPU above _PALLAS_MIN_M_SPREAD).
+     auto-dispatched on GPU above the per-dim _PALLAS_MIN_M_SPREAD_* thresholds).
 
 Interpolation (Type 2 gather) has no Pallas kernel by design: XLA already
 fuses it optimally (benchmarked: parity in 1D/2D, 2-4x slower in 3D).
