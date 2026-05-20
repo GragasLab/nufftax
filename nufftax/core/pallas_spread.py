@@ -311,5 +311,3 @@ def spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params):
         compiler_params=pltriton.CompilerParams(num_warps=4, num_stages=2),
     )(x_pad, y_pad, z_pad, c_real_pad, c_imag_pad, fw_real_init, fw_imag_init)
     return (fw_real + 1j * fw_imag).astype(c.dtype).reshape(nf3, nf2, nf1)
-
-
