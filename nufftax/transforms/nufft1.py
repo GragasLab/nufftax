@@ -14,7 +14,7 @@ import jax.numpy as jnp
 
 from ..core.deconvolve import deconvolve_shuffle_1d, deconvolve_shuffle_2d, deconvolve_shuffle_3d
 from ..core.kernel import compute_kernel_params, kernel_fourier_series
-from ..core.spread import spread_1d, spread_2d, spread_3d
+from ..core.spread import _spread_1d_dispatch, _spread_2d_dispatch, spread_3d_impl
 from ..utils.grid import compute_grid_size
 
 
@@ -72,7 +72,7 @@ def nufft1d1(
 
     # Step 2: Spread to fine grid
     # The spread function expects coordinates in [-pi, pi)
-    fw = spread_1d(x_normalized, c, nf, kernel_params)
+    fw = _spread_1d_dispatch(x_normalized, c, nf, kernel_params)
 
     # Step 3: FFT
     # Sign convention: isign > 0 means exp(+ikx), which requires IFFT * nf
@@ -148,7 +148,7 @@ def nufft2d1(
     y_normalized = jnp.mod(y + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Spread to fine grid
-    fw = spread_2d(x_normalized, y_normalized, c, nf1, nf2, kernel_params)
+    fw = _spread_2d_dispatch(x_normalized, y_normalized, c, nf1, nf2, kernel_params)
 
     # 2D FFT - sign convention same as 1D
     fw_hat = jnp.fft.ifft2(fw, axes=(-2, -1)) * (nf1 * nf2) if isign > 0 else jnp.fft.fft2(fw, axes=(-2, -1))
@@ -226,7 +226,7 @@ def nufft3d1(
     z_normalized = jnp.mod(z + jnp.pi, 2.0 * jnp.pi) - jnp.pi
 
     # Spread to fine grid
-    fw = spread_3d(x_normalized, y_normalized, z_normalized, c, nf1, nf2, nf3, kernel_params)
+    fw = spread_3d_impl(x_normalized, y_normalized, z_normalized, c, nf1, nf2, nf3, kernel_params)
 
     # 3D FFT - sign convention same as 1D
     if isign > 0:

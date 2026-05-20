@@ -15,8 +15,35 @@ import functools
 
 import jax
 import jax.numpy as jnp
+from jax._src.core import Primitive, ShapedArray
+from jax._src.interpreters import ad as _ad
+from jax._src.interpreters import batching as _batching
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import triton as pltriton
+
+from .spread import (
+    _HAS_PALLAS_GPU,
+    _PALLAS_MIN_M_INTERP,
+    _PALLAS_MIN_M_SPREAD,
+)
+from .spread import (
+    _spread_1d_dispatch as _s1_disp,
+)
+from .spread import (
+    _spread_2d_dispatch as _s2_disp,
+)
+from .spread import (
+    interp_1d_impl as _i1_impl,
+)
+from .spread import (
+    interp_2d_impl as _i2_impl,
+)
+from .spread import (
+    spread_1d_impl as _s1_impl,
+)
+from .spread import (
+    spread_2d_impl as _s2_impl,
+)
 
 
 BLOCK_SIZE = 256
