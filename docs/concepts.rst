@@ -243,34 +243,16 @@ The primitives live in ``nufftax.core``:
   :math:`c_j = \sum_k \text{fw}[k]\, \phi(k - \tilde{x}_j)`
 
 where :math:`\tilde{x}_j` is the point mapped to grid units and :math:`\phi` is
-the kernel, nonzero only over ``nspread`` neighbouring grid points.
+the kernel, nonzero only over ``nspread`` neighbouring grid points. By default
+they use the built-in ES kernel (the same one the ``nufftNdM`` transforms use).
 
-By default they take the ES kernel via ``compute_kernel_params``:
-
-.. code-block:: python
-
-   from nufftax.core import spread_1d, compute_kernel_params
-
-   kp = compute_kernel_params(1e-6)            # ES kernel (tol=1e-6)
-   fw = spread_1d(x, c, 256, kp)               # (x, c, nf, kernel)
-
-To use a custom kernel, pass a ``Kernel`` instead. A truncated Gaussian is
-provided out of the box:
-
-.. code-block:: python
-
-   from nufftax.core import spread_1d, interp_1d, gaussian_kernel
-
-   kernel = gaussian_kernel(nspread=10, sigma=1.5)
-   fw = spread_1d(x, c, 256, kernel)   # spread Gaussians onto the grid
-   c2 = interp_1d(x, fw, 256, kernel)  # adjoint gather
-
-Any kernel can be defined by giving its support width and value function:
+To use your own kernel, pass a ``Kernel`` instead — defined by its support
+width and value function. The example below is a truncated Gaussian:
 
 .. code-block:: python
 
    import jax.numpy as jnp
-   from nufftax.core import Kernel
+   from nufftax.core import spread_1d, interp_1d, Kernel
 
    # phi must be pure jnp arithmetic (it is also lowered into the GPU kernel)
    def phi(z):
@@ -283,6 +265,9 @@ Any kernel can be defined by giving its support width and value function:
        return p, -(z / 1.5**2) * p
 
    kernel = Kernel(nspread=10, phi=phi, phi_and_dphi=phi_and_dphi)
+
+   fw = spread_1d(x, c, 256, kernel)   # spread Gaussians onto the grid
+   c2 = interp_1d(x, fw, 256, kernel)  # adjoint gather
 
 These primitives keep full ``grad``/``vjp`` support, including gradients w.r.t.
 the point coordinates (which use the kernel derivative).
