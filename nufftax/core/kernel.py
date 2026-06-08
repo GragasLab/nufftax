@@ -8,6 +8,8 @@ Reference: FINUFFT include/finufft_common/kernel.h
 """
 
 import math
+from collections.abc import Callable
+from dataclasses import dataclass
 from functools import partial
 from typing import NamedTuple
 
@@ -22,6 +24,55 @@ class KernelParams(NamedTuple):
     beta: float  # Shape parameter
     c: float  # Normalization parameter = 4/nspread^2
     upsampfac: float  # Upsampling factor (default 2.0)
+
+
+@dataclass(frozen=True)
+class Kernel:
+    """A user-supplied spreading/interpolation kernel.
+
+    Lets ``spread_*`` / ``interp_*`` use an arbitrary kernel instead of the
+    built-in ES kernel (e.g. a short-range Gaussian). The support is the
+    ``nspread`` grid points around each nonuniform point, i.e. ``phi`` is only
+    ever evaluated for ``z`` in ``[-nspread/2, nspread/2]``.
+
+    Args:
+        nspread: Kernel width in grid points (static).
+        phi: ``z -> phi(z)``. Must be pure ``jnp`` arithmetic so it lowers both
+            in plain JAX and inside the Pallas/Triton kernels (no Python control
+            flow on traced values).
+        phi_and_dphi: Optional ``z -> (phi(z), dphi/dz)``, used for gradients
+            w.r.t. the point coordinates. If ``None``, the derivative is obtained
+            from ``phi`` by autodiff (pure-JAX path only).
+
+    Note:
+        This is hashable (frozen, callable fields) so it can be passed as the
+        static kernel argument, exactly like ``KernelParams``.
+    """
+
+    nspread: int
+    phi: Callable[[jax.Array], jax.Array]
+    phi_and_dphi: Callable[[jax.Array], tuple[jax.Array, jax.Array]] | None = None
+
+    def value(self, z: jax.Array) -> jax.Array:
+        return self.phi(z)
+
+    def value_and_grad(self, z: jax.Array) -> tuple[jax.Array, jax.Array]:
+        if self.phi_and_dphi is not None:
+            return self.phi_and_dphi(z)
+        # Fallback: differentiate the (elementwise, real) kernel with autodiff.
+        grad_phi = jax.grad(lambda zi: self.phi(zi))
+        dphi = jax.vmap(grad_phi)(z.reshape(-1)).reshape(z.shape)
+        return self.phi(z), dphi
+
+
+def es_kernel_spec(kernel_params: KernelParams) -> Kernel:
+    """Wrap the built-in ES kernel as a :class:`Kernel` (used internally)."""
+    beta, c = kernel_params.beta, kernel_params.c
+    return Kernel(
+        nspread=kernel_params.nspread,
+        phi=lambda z: es_kernel(z, beta, c),
+        phi_and_dphi=lambda z: es_kernel_with_derivative(z, beta, c),
+    )
 
 
 def es_kernel(z: jax.Array, beta: float, c: float) -> jax.Array:

@@ -18,8 +18,22 @@ import jax.numpy as jnp
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import triton as pltriton
 
+from .kernel import Kernel
+
 
 BLOCK_SIZE = 256
+
+
+def _kernel_eval_params(kernel_params):
+    """Extract Pallas kernel-eval params: (nspread, beta, c, phi).
+
+    For a custom ``Kernel``, ``phi`` is its (Triton-lowerable) value function
+    and ``beta``/``c`` are unused placeholders. For ``KernelParams`` (ES),
+    ``phi`` is ``None`` and the inlined ES formula is used.
+    """
+    if isinstance(kernel_params, Kernel):
+        return kernel_params.nspread, 0.0, 0.0, kernel_params.phi
+    return kernel_params.nspread, float(kernel_params.beta), float(kernel_params.c), None
 
 
 # ============================================================================
@@ -34,9 +48,15 @@ def _fold_rescale(x, nf):
     return (x_scaled - jnp.floor(x_scaled)) * nf
 
 
-def _eval_kernel_1d(i0, k, x_scaled, beta, c):
-    """Evaluate ES kernel weight for offset k from i0."""
+def _eval_kernel_1d(i0, k, x_scaled, beta, c, phi=None):
+    """Evaluate kernel weight for offset k from i0.
+
+    Uses the inlined ES formula by default; if ``phi`` is given (custom kernel),
+    it is called directly on ``z`` (must be Triton-lowerable jnp arithmetic).
+    """
     z = (i0 + k).astype(x_scaled.dtype) - x_scaled
+    if phi is not None:
+        return phi(z)
     arg = 1.0 - c * z * z
     return jnp.where(arg >= 0, jnp.exp(beta * (jnp.sqrt(jnp.maximum(arg, 0.0)) - 1.0)), 0.0)
 
@@ -59,6 +79,7 @@ def _spread_1d_kernel(
     nspread,
     beta,
     c,
+    phi,
 ):
     x = x_ref[:]
     cr, ci = c_real_ref[:], c_imag_ref[:]
@@ -67,13 +88,14 @@ def _spread_1d_kernel(
 
     for k in range(nspread):
         idx = (i0 + k) % nf
-        w = _eval_kernel_1d(i0, k, x_scaled, beta, c)
+        w = _eval_kernel_1d(i0, k, x_scaled, beta, c, phi)
         pltriton.atomic_add(fw_real_out_ref, idx, cr * w)
         pltriton.atomic_add(fw_imag_out_ref, idx, ci * w)
 
 
 def spread_1d_pallas(x, c, nf, kernel_params):
     """1D spreading using fused Pallas kernel with atomic scatter-add."""
+    nspread, beta, kc, phi = _kernel_eval_params(kernel_params)
     M = x.shape[0]
     M_pad = ((M + BLOCK_SIZE - 1) // BLOCK_SIZE) * BLOCK_SIZE
     x_pad = jnp.pad(x.astype(jnp.float32), (0, M_pad - M))
@@ -85,9 +107,10 @@ def spread_1d_pallas(x, c, nf, kernel_params):
     kernel_fn = functools.partial(
         _spread_1d_kernel,
         nf=nf,
-        nspread=kernel_params.nspread,
-        beta=float(kernel_params.beta),
-        c=float(kernel_params.c),
+        nspread=nspread,
+        beta=beta,
+        c=kc,
+        phi=phi,
     )
     fw_real, fw_imag = pl.pallas_call(
         kernel_fn,
@@ -133,6 +156,7 @@ def _spread_2d_kernel(
     nspread,
     beta,
     c,
+    phi,
 ):
     x, y = x_ref[:], y_ref[:]
     cr, ci = c_real_ref[:], c_imag_ref[:]
@@ -145,11 +169,11 @@ def _spread_2d_kernel(
     wx_vals, idx_x_vals = [], []
     for kx in range(nspread):
         idx_x_vals.append((i0_x + kx) % nf1)
-        wx_vals.append(_eval_kernel_1d(i0_x, kx, x_scaled, beta, c))
+        wx_vals.append(_eval_kernel_1d(i0_x, kx, x_scaled, beta, c, phi))
     wy_vals, idy_vals = [], []
     for ky in range(nspread):
         idy_vals.append((i0_y + ky) % nf2)
-        wy_vals.append(_eval_kernel_1d(i0_y, ky, y_scaled, beta, c))
+        wy_vals.append(_eval_kernel_1d(i0_y, ky, y_scaled, beta, c, phi))
 
     for ky in range(nspread):
         for kx in range(nspread):
@@ -161,6 +185,7 @@ def _spread_2d_kernel(
 
 def spread_2d_pallas(x, y, c, nf1, nf2, kernel_params):
     """2D spreading using fused Pallas kernel with atomic scatter-add."""
+    nspread, beta, kc, phi = _kernel_eval_params(kernel_params)
     M = x.shape[0]
     nf_total = nf1 * nf2
     M_pad = ((M + BLOCK_SIZE - 1) // BLOCK_SIZE) * BLOCK_SIZE
@@ -175,9 +200,10 @@ def spread_2d_pallas(x, y, c, nf1, nf2, kernel_params):
         _spread_2d_kernel,
         nf1=nf1,
         nf2=nf2,
-        nspread=kernel_params.nspread,
-        beta=float(kernel_params.beta),
-        c=float(kernel_params.c),
+        nspread=nspread,
+        beta=beta,
+        c=kc,
+        phi=phi,
     )
     fw_real, fw_imag = pl.pallas_call(
         kernel_fn,
@@ -226,6 +252,7 @@ def _spread_3d_kernel(
     nspread,
     beta,
     c,
+    phi,
 ):
     x, y, z = x_ref[:], y_ref[:], z_ref[:]
     cr, ci = c_real_ref[:], c_imag_ref[:]
@@ -244,15 +271,15 @@ def _spread_3d_kernel(
     nf12 = nf1 * nf2
 
     def kz_body(kz, _):
-        wz = _eval_kernel_1d(i0_z, kz, z_scaled, beta, c)
+        wz = _eval_kernel_1d(i0_z, kz, z_scaled, beta, c, phi)
         base_z = ((i0_z + kz) % nf3) * nf12
 
         def ky_body(ky, _):
-            wyz = wz * _eval_kernel_1d(i0_y, ky, y_scaled, beta, c)
+            wyz = wz * _eval_kernel_1d(i0_y, ky, y_scaled, beta, c, phi)
             base_yz = base_z + ((i0_y + ky) % nf2) * nf1
 
             def kx_body(kx, _):
-                w = wyz * _eval_kernel_1d(i0_x, kx, x_scaled, beta, c)
+                w = wyz * _eval_kernel_1d(i0_x, kx, x_scaled, beta, c, phi)
                 flat_idx = base_yz + ((i0_x + kx) % nf1)
                 pltriton.atomic_add(fw_real_out_ref, flat_idx, cr * w)
                 pltriton.atomic_add(fw_imag_out_ref, flat_idx, ci * w)
@@ -267,6 +294,7 @@ def _spread_3d_kernel(
 
 def spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params):
     """3D spreading using fused Pallas kernel with atomic scatter-add."""
+    nspread, beta, kc, phi = _kernel_eval_params(kernel_params)
     M = x.shape[0]
     nf_total = nf1 * nf2 * nf3
     M_pad = ((M + BLOCK_SIZE - 1) // BLOCK_SIZE) * BLOCK_SIZE
@@ -283,9 +311,10 @@ def spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params):
         nf1=nf1,
         nf2=nf2,
         nf3=nf3,
-        nspread=kernel_params.nspread,
-        beta=float(kernel_params.beta),
-        c=float(kernel_params.c),
+        nspread=nspread,
+        beta=beta,
+        c=kc,
+        phi=phi,
     )
     fw_real, fw_imag = pl.pallas_call(
         kernel_fn,
