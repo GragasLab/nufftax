@@ -50,6 +50,19 @@ def _bool_env(name: str, default: bool) -> bool:
 
 _USE_PALLAS_SPREAD = _bool_env("NUFFTAX_PALLAS_BACKEND", True)
 
+
+def _use_pallas(x: jax.Array, c: jax.Array) -> bool:
+    """Whether to route this spread to the Pallas kernels.
+
+    Requires the backend enabled (env var) and a GPU. The Pallas kernels compute
+    in float32, so only fully 32-bit inputs (float32 coordinates, complex64
+    strengths) take the Pallas path; any 64-bit input (x64 / complex128) falls
+    back to pure JAX, which both preserves accuracy and keeps dtypes consistent
+    across the AD rules.
+    """
+    return _USE_PALLAS_SPREAD and _HAS_PALLAS_GPU and x.dtype == jnp.float32 and c.dtype == jnp.complex64
+
+
 # ============================================================================
 # Helper functions
 # ============================================================================
@@ -696,7 +709,7 @@ def interp_3d_impl(
 
 def _spread_1d_dispatch(x, c, nf, kernel_params):
     """Dispatch 1D spreading to Pallas GPU or pure JAX."""
-    if _USE_PALLAS_SPREAD and _HAS_PALLAS_GPU:
+    if _use_pallas(x, c):
         if c.ndim == 1:
             return spread_1d_pallas(x, c, nf, kernel_params)
         return jax.vmap(lambda ci: spread_1d_pallas(x, ci, nf, kernel_params))(c)
@@ -705,7 +718,7 @@ def _spread_1d_dispatch(x, c, nf, kernel_params):
 
 def _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params):
     """Dispatch 2D spreading to Pallas GPU or pure JAX."""
-    if _USE_PALLAS_SPREAD and _HAS_PALLAS_GPU:
+    if _use_pallas(x, c):
         if c.ndim == 1:
             return spread_2d_pallas(x, y, c, nf1, nf2, kernel_params)
         return jax.vmap(lambda ci: spread_2d_pallas(x, y, ci, nf1, nf2, kernel_params))(c)
@@ -727,7 +740,7 @@ def _interp_2d_dispatch(x, y, fw, kernel_params):
 
 def _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params):
     """Dispatch 3D spreading to Pallas GPU or pure JAX."""
-    if _USE_PALLAS_SPREAD and _HAS_PALLAS_GPU:
+    if _use_pallas(x, c):
         if c.ndim == 1:
             return spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params)
         return jax.vmap(lambda ci: spread_3d_pallas(x, y, z, ci, nf1, nf2, nf3, kernel_params))(c)
