@@ -246,6 +246,55 @@ def test_autodiff_derivative_fallback_matches_analytic(rng):
 
 
 # ============================================================================
+# Differentiability / vmap w.r.t. kernel parameters
+#
+# Kernel is a NamedTuple (pytree). Parameters baked into a closed-over phi are
+# differentiable when the kernel is built inside the transformed function and
+# the pure-JAX spread/interp path is used. (The public spread_* keep the kernel
+# as a static custom_vjp argument — the same as the built-in KernelParams — so
+# differentiating *through them* w.r.t. kernel parameters is not supported.)
+# ============================================================================
+
+
+def _gauss_kernel_from_sigma(sigma):
+    inv_2s2 = 1.0 / (2.0 * sigma * sigma)
+    return Kernel(nspread=NSPREAD, phi=lambda z: jnp.exp(-inv_2s2 * (z * z)))
+
+
+def test_grad_wrt_kernel_param_pure_jax_matches_fd(rng):
+    M, nf = 40, 64
+    x = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    c = jnp.asarray(rng.standard_normal(M)).astype(jnp.complex64)
+    g = jnp.asarray(rng.standard_normal(nf))
+
+    def loss(sigma):
+        return jnp.sum(g * jnp.real(spread_1d_impl(x, c, nf, _gauss_kernel_from_sigma(sigma))))
+
+    sigma = jnp.float32(1.5)
+    grad = float(jax.grad(loss)(sigma))
+
+    eps = 1e-3
+    fd = (float(loss(sigma + eps)) - float(loss(sigma - eps))) / (2 * eps)
+    assert_allclose(grad, fd, rtol=2e-2, atol=2e-2)
+
+
+def test_vmap_over_kernel_param_pure_jax(rng):
+    M, nf = 30, 64
+    x = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    c = jnp.asarray(rng.standard_normal(M)).astype(jnp.complex64)
+    sigmas = jnp.array([1.0, 1.5, 2.0], dtype=jnp.float32)
+
+    def spread_with(sigma):
+        return spread_1d_impl(x, c, nf, _gauss_kernel_from_sigma(sigma))
+
+    out = jax.vmap(spread_with)(sigmas)
+    assert out.shape == (3, nf)
+    # each slice equals the un-vmapped spread for that sigma
+    for i, s in enumerate(sigmas):
+        assert_allclose(np.asarray(out[i]), np.asarray(spread_with(s)), rtol=1e-5, atol=1e-5)
+
+
+# ============================================================================
 # NUFFTAX_PALLAS_BACKEND env var gates the Pallas spreading backend (default on)
 # ============================================================================
 

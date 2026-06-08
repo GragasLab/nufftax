@@ -9,7 +9,6 @@ Reference: FINUFFT include/finufft_common/kernel.h
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass
 from functools import partial
 from typing import NamedTuple
 
@@ -26,8 +25,7 @@ class KernelParams(NamedTuple):
     upsampfac: float  # Upsampling factor (default 2.0)
 
 
-@dataclass(frozen=True)
-class Kernel:
+class Kernel(NamedTuple):
     """A user-supplied spreading/interpolation kernel.
 
     Lets ``spread_*`` / ``interp_*`` use an arbitrary kernel instead of the
@@ -45,8 +43,11 @@ class Kernel:
             from ``phi`` by autodiff (pure-JAX path only).
 
     Note:
-        This is hashable (frozen, callable fields) so it can be passed as the
-        static kernel argument, exactly like ``KernelParams``.
+        A ``NamedTuple`` (like ``KernelParams``) so it is a JAX pytree and stays
+        hashable for use as the static kernel argument. Kernel parameters baked
+        into a closed-over ``phi`` are differentiable when the kernel is built
+        inside the differentiated function and the pure-JAX spread/interp path is
+        used (the Pallas path keeps ``phi`` static).
     """
 
     nspread: int
