@@ -174,6 +174,28 @@ The kernel width scales roughly as :math:`\lceil \log_{10}(1/\text{eps}) \rceil 
    # High precision
    f_precise = nufft1d1(x, c, n_modes=64, eps=1e-12)
 
+Oversampling factor (``upsampfac``)
+-----------------------------------
+
+All transforms accept ``upsampfac``, the oversampling factor of the internal
+fine grid (default ``2.0``). A smaller factor such as ``1.25`` shrinks the grid
+and is faster, at the cost of accuracy — note that nufftax uses a generic kernel
+formula, so at ``1.25`` it does not reach the same precision as the hand-tuned
+FINUFFT kernels.
+
+.. code-block:: python
+
+   f = nufft2d1(x, y, c, n_modes=(64, 64), upsampfac=1.25)  # faster, coarser
+
+For Type 1 / Type 2, ``upsampfac`` may also be a ``(forward, backward)`` pair:
+the forward transform and its adjoint (used in reverse-mode AD) need not share
+the same oversampling, which can be tuned independently for performance.
+
+.. code-block:: python
+
+   # forward at 2.0, gradient/adjoint at 1.25
+   f = nufft2d1(x, y, c, n_modes=(64, 64), upsampfac=(2.0, 1.25))
+
 Coordinate Conventions
 ----------------------
 
