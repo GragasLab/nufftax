@@ -246,6 +246,24 @@ def test_autodiff_derivative_fallback_matches_analytic(rng):
 
 
 # ============================================================================
+# NUFFTAX_PALLAS_BACKEND env var gates the Pallas spreading backend (default on)
+# ============================================================================
+
+
+def test_pallas_backend_env_flag(monkeypatch):
+    from nufftax.core.spread import _bool_env
+
+    monkeypatch.delenv("NUFFTAX_PALLAS_BACKEND", raising=False)
+    assert _bool_env("NUFFTAX_PALLAS_BACKEND", True) is True  # default on
+    for off in ("0", "false", "False", "no", "off"):
+        monkeypatch.setenv("NUFFTAX_PALLAS_BACKEND", off)
+        assert _bool_env("NUFFTAX_PALLAS_BACKEND", True) is False
+    for on in ("1", "true", "yes", "on"):
+        monkeypatch.setenv("NUFFTAX_PALLAS_BACKEND", on)
+        assert _bool_env("NUFFTAX_PALLAS_BACKEND", True) is True
+
+
+# ============================================================================
 # GPU-only: the custom kernel runs through the Pallas spread kernels and
 # matches the pure-JAX reference (the point that a custom phi can be threaded
 # into Pallas, not just the built-in ES kernel).
@@ -295,12 +313,10 @@ class TestCustomKernelPallas:
 
     @gpu_only
     def test_public_dispatch_routes_custom_kernel_to_pallas(self):
-        # Above the dispatch threshold, spread_1d with a custom kernel must take
-        # the Pallas path and still match the pure-JAX reference.
-        from nufftax.core.spread import _PALLAS_MIN_M_SPREAD_1D
-
+        # With the Pallas backend enabled (default), spread_1d with a custom
+        # kernel must take the Pallas path and still match the pure-JAX reference.
         kernel = gaussian_kernel(NSPREAD, SIGMA)
-        (x,), c = _setup(max(_PALLAS_MIN_M_SPREAD_1D, 20_000), 1)
+        (x,), c = _setup(20_000, 1)
         out = spread_1d(x, c, 256, kernel)
         out_ref = spread_1d_impl(x, c, 256, kernel)
         np.testing.assert_allclose(np.asarray(out), np.asarray(out_ref), rtol=5e-4, atol=5e-5)

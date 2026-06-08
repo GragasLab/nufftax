@@ -274,12 +274,20 @@ the point coordinates (which use the kernel derivative).
 
 .. note::
 
-   **GPU.** Custom kernels run through the same fused Pallas spreading kernels
-   as the ES kernel — ``phi`` is threaded into the Triton kernel as a static
-   closure — so there is no performance penalty beyond the cost of ``phi``
-   itself. This requires ``phi`` to be pure ``jnp`` arithmetic (no Python
-   control flow on traced values) and passed as a static argument; a distinct
-   kernel triggers one Pallas recompilation.
+   **GPU.** When the Pallas backend is enabled (the default; see
+   ``NUFFTAX_PALLAS_BACKEND`` below), custom kernels run through the same fused
+   Pallas spreading kernels as the ES kernel — ``phi`` is threaded into the
+   Triton kernel as a static closure — so there is no performance penalty beyond
+   the cost of ``phi`` itself. This requires ``phi`` to be pure ``jnp``
+   arithmetic (no Python control flow on traced values) and passed as a static
+   argument; a distinct kernel triggers one Pallas recompilation.
+
+.. note::
+
+   **Selecting the backend.** GPU spreading uses the fused Pallas kernels by
+   default. Set ``NUFFTAX_PALLAS_BACKEND=0`` to force the pure-JAX path
+   everywhere — slower for large problems, but more robust across JAX versions
+   and GPU backends. On CPU the pure-JAX path is always used.
 
 .. note::
 

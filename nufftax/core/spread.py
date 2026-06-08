@@ -10,6 +10,7 @@ The implementation uses pure JAX operations to enable automatic differentiation.
 Reference: FINUFFT src/spreadinterp.cpp
 """
 
+import os
 from functools import partial
 
 import jax
@@ -34,13 +35,20 @@ try:
 except ImportError:
     pass
 
-# Spreading (Type 1 scatter) on GPU: per-dimension crossover where the fused
-# Pallas kernels overtake the pure-JAX scatter (measured on H100; below the
-# threshold kernel-launch + BLOCK_SIZE padding dominate). Above these points
-# Pallas wins 1.5x to 30x+.
-_PALLAS_MIN_M_SPREAD_1D = 5_000
-_PALLAS_MIN_M_SPREAD_2D = 5_000
-_PALLAS_MIN_M_SPREAD_3D = 10_000
+
+# Whether to use the fused Pallas GPU spreading kernels. Gated by the
+# NUFFTAX_PALLAS_BACKEND environment variable (default on). Set it to a falsey
+# value (0/false/no/off) to force the pure-JAX path everywhere — slower for
+# large problems, but more robust across JAX versions and GPU backends. Pallas
+# additionally requires a GPU (Triton); on CPU the pure-JAX path is always used.
+def _bool_env(name: str, default: bool) -> bool:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() not in ("0", "false", "no", "off", "")
+
+
+_USE_PALLAS_SPREAD = _bool_env("NUFFTAX_PALLAS_BACKEND", True)
 
 # ============================================================================
 # Helper functions
@@ -688,7 +696,7 @@ def interp_3d_impl(
 
 def _spread_1d_dispatch(x, c, nf, kernel_params):
     """Dispatch 1D spreading to Pallas GPU or pure JAX."""
-    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD_1D:
+    if _USE_PALLAS_SPREAD and _HAS_PALLAS_GPU:
         if c.ndim == 1:
             return spread_1d_pallas(x, c, nf, kernel_params)
         return jax.vmap(lambda ci: spread_1d_pallas(x, ci, nf, kernel_params))(c)
@@ -697,7 +705,7 @@ def _spread_1d_dispatch(x, c, nf, kernel_params):
 
 def _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params):
     """Dispatch 2D spreading to Pallas GPU or pure JAX."""
-    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD_2D:
+    if _USE_PALLAS_SPREAD and _HAS_PALLAS_GPU:
         if c.ndim == 1:
             return spread_2d_pallas(x, y, c, nf1, nf2, kernel_params)
         return jax.vmap(lambda ci: spread_2d_pallas(x, y, ci, nf1, nf2, kernel_params))(c)
@@ -719,7 +727,7 @@ def _interp_2d_dispatch(x, y, fw, kernel_params):
 
 def _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params):
     """Dispatch 3D spreading to Pallas GPU or pure JAX."""
-    if _HAS_PALLAS_GPU and x.shape[0] >= _PALLAS_MIN_M_SPREAD_3D:
+    if _USE_PALLAS_SPREAD and _HAS_PALLAS_GPU:
         if c.ndim == 1:
             return spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params)
         return jax.vmap(lambda ci: spread_3d_pallas(x, y, z, ci, nf1, nf2, nf3, kernel_params))(c)
@@ -740,7 +748,7 @@ def spread_1d(
     x: jax.Array,
     c: jax.Array,
     nf: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     Spread nonuniform point values to a 1D uniform grid.
@@ -835,7 +843,7 @@ def interp_1d(
     x: jax.Array,
     fw: jax.Array,
     nf: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     Interpolate from 1D uniform grid to nonuniform points.
@@ -928,7 +936,7 @@ def spread_2d(
     c: jax.Array,
     nf1: int,
     nf2: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     Spread nonuniform point values to a 2D uniform grid.
@@ -1026,7 +1034,7 @@ def interp_2d(
     fw: jax.Array,
     nf1: int,
     nf2: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     Interpolate from 2D uniform grid to nonuniform points.
@@ -1130,7 +1138,7 @@ def spread_3d(
     nf1: int,
     nf2: int,
     nf3: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     Spread nonuniform point values to a 3D uniform grid.
@@ -1245,7 +1253,7 @@ def interp_3d(
     nf1: int,
     nf2: int,
     nf3: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     Interpolate from 3D uniform grid to nonuniform points.
