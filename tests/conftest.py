@@ -16,6 +16,13 @@ import pytest
 # Configuration
 # ============================================================================
 
+# The suite runs with float64 enabled: several tests need complex128 (Type 3
+# accuracy vs FINUFFT, dtype tests, high-precision adjoints). Enabling it here
+# — conftest is imported before any test module — makes the configuration
+# deterministic. Previously it was an import side-effect of test_nufft3.py, so
+# running a subset of files behaved differently from the full suite.
+jax.config.update("jax_enable_x64", True)
+
 # Seed for reproducible tests
 DEFAULT_SEED = 42
 
