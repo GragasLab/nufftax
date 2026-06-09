@@ -24,7 +24,11 @@ from .kernel import Kernel, KernelParams, es_kernel_spec
 # ============================================================================
 
 _HAS_PALLAS_GPU = False
+_PALLAS_INTERPRET = False
 try:
+    from .pallas_spread import (
+        INTERPRET as _PALLAS_INTERPRET,
+    )
     from .pallas_spread import (
         spread_1d_pallas,
         spread_2d_pallas,
@@ -54,13 +58,15 @@ _USE_PALLAS_SPREAD = _bool_env("NUFFTAX_PALLAS_BACKEND", True)
 def _use_pallas(x: jax.Array, c: jax.Array) -> bool:
     """Whether to route this spread to the Pallas kernels.
 
-    Requires the backend enabled (env var) and a GPU. The Pallas kernels compute
-    in float32, so only fully 32-bit inputs (float32 coordinates, complex64
+    Requires the backend enabled (env var) and a GPU — or interpret mode
+    (NUFFTAX_PALLAS_INTERPRET, testing only). The Pallas kernels compute in
+    float32, so only fully 32-bit inputs (float32 coordinates, complex64
     strengths) take the Pallas path; any 64-bit input (x64 / complex128) falls
     back to pure JAX, which both preserves accuracy and keeps dtypes consistent
     across the AD rules.
     """
-    return _USE_PALLAS_SPREAD and _HAS_PALLAS_GPU and x.dtype == jnp.float32 and c.dtype == jnp.complex64
+    available = _HAS_PALLAS_GPU or _PALLAS_INTERPRET
+    return _USE_PALLAS_SPREAD and available and x.dtype == jnp.float32 and c.dtype == jnp.complex64
 
 
 # ============================================================================
@@ -999,24 +1005,9 @@ def _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel_params):
     x_scaled = fold_rescale(x, nf1)
     y_scaled = fold_rescale(y, nf2)
 
-    ns2 = nspread / 2.0
-    offsets = jnp.arange(nspread)
-    scale_x = nf1 / (2.0 * jnp.pi)
-    scale_y = nf2 / (2.0 * jnp.pi)
-
-    # X dimension (fused kernel + derivative computation)
-    i0_x = jnp.ceil(x_scaled - ns2).astype(jnp.int32)
-    indices_x = (i0_x[:, None] + offsets[None, :]) % nf1
-    z_x = (i0_x[:, None] + offsets[None, :]).astype(x.dtype) - x_scaled[:, None]
-    weights_x, dweights_x_raw = kernel.value_and_grad(z_x)
-    dweights_x = -dweights_x_raw * scale_x
-
-    # Y dimension (fused kernel + derivative computation)
-    i0_y = jnp.ceil(y_scaled - ns2).astype(jnp.int32)
-    indices_y = (i0_y[:, None] + offsets[None, :]) % nf2
-    z_y = (i0_y[:, None] + offsets[None, :]).astype(y.dtype) - y_scaled[:, None]
-    weights_y, dweights_y_raw = kernel.value_and_grad(z_y)
-    dweights_y = -dweights_y_raw * scale_y
+    # Per-dimension kernel weights and derivatives (shared 1D helper)
+    indices_x, weights_x, dweights_x = compute_kernel_weights_derivative_1d(x_scaled, nf1, kernel)
+    indices_y, weights_y, dweights_y = compute_kernel_weights_derivative_1d(y_scaled, nf2, kernel)
 
     # 2D indices
     indices_2d = indices_y[:, :, None] * nf1 + indices_x[:, None, :]
@@ -1096,24 +1087,9 @@ def _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel_params):
     x_scaled = fold_rescale(x, nf1)
     y_scaled = fold_rescale(y, nf2)
 
-    ns2 = nspread / 2.0
-    offsets = jnp.arange(nspread)
-    scale_x = nf1 / (2.0 * jnp.pi)
-    scale_y = nf2 / (2.0 * jnp.pi)
-
-    # X dimension (fused kernel + derivative computation)
-    i0_x = jnp.ceil(x_scaled - ns2).astype(jnp.int32)
-    indices_x = (i0_x[:, None] + offsets[None, :]) % nf1
-    z_x = (i0_x[:, None] + offsets[None, :]).astype(x.dtype) - x_scaled[:, None]
-    weights_x, dweights_x_raw = kernel.value_and_grad(z_x)
-    dweights_x = -dweights_x_raw * scale_x
-
-    # Y dimension (fused kernel + derivative computation)
-    i0_y = jnp.ceil(y_scaled - ns2).astype(jnp.int32)
-    indices_y = (i0_y[:, None] + offsets[None, :]) % nf2
-    z_y = (i0_y[:, None] + offsets[None, :]).astype(y.dtype) - y_scaled[:, None]
-    weights_y, dweights_y_raw = kernel.value_and_grad(z_y)
-    dweights_y = -dweights_y_raw * scale_y
+    # Per-dimension kernel weights and derivatives (shared 1D helper)
+    indices_x, weights_x, dweights_x = compute_kernel_weights_derivative_1d(x_scaled, nf1, kernel)
+    indices_y, weights_y, dweights_y = compute_kernel_weights_derivative_1d(y_scaled, nf2, kernel)
 
     # 2D indices
     indices_2d = indices_y[:, :, None] * nf1 + indices_x[:, None, :]
@@ -1200,32 +1176,10 @@ def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
     y_scaled = fold_rescale(y, nf2)
     z_scaled = fold_rescale(z, nf3)
 
-    ns2 = nspread / 2.0
-    offsets = jnp.arange(nspread)
-    scale_x = nf1 / (2.0 * jnp.pi)
-    scale_y = nf2 / (2.0 * jnp.pi)
-    scale_z = nf3 / (2.0 * jnp.pi)
-
-    # X dimension (fused kernel + derivative computation)
-    i0_x = jnp.ceil(x_scaled - ns2).astype(jnp.int32)
-    indices_x = (i0_x[:, None] + offsets[None, :]) % nf1
-    z_x = (i0_x[:, None] + offsets[None, :]).astype(x.dtype) - x_scaled[:, None]
-    weights_x, dweights_x_raw = kernel.value_and_grad(z_x)
-    dweights_x = -dweights_x_raw * scale_x
-
-    # Y dimension (fused kernel + derivative computation)
-    i0_y = jnp.ceil(y_scaled - ns2).astype(jnp.int32)
-    indices_y = (i0_y[:, None] + offsets[None, :]) % nf2
-    z_y = (i0_y[:, None] + offsets[None, :]).astype(y.dtype) - y_scaled[:, None]
-    weights_y, dweights_y_raw = kernel.value_and_grad(z_y)
-    dweights_y = -dweights_y_raw * scale_y
-
-    # Z dimension (fused kernel + derivative computation)
-    i0_z = jnp.ceil(z_scaled - ns2).astype(jnp.int32)
-    indices_z = (i0_z[:, None] + offsets[None, :]) % nf3
-    z_z = (i0_z[:, None] + offsets[None, :]).astype(z.dtype) - z_scaled[:, None]
-    weights_z, dweights_z_raw = kernel.value_and_grad(z_z)
-    dweights_z = -dweights_z_raw * scale_z
+    # Per-dimension kernel weights and derivatives (shared 1D helper)
+    indices_x, weights_x, dweights_x = compute_kernel_weights_derivative_1d(x_scaled, nf1, kernel)
+    indices_y, weights_y, dweights_y = compute_kernel_weights_derivative_1d(y_scaled, nf2, kernel)
+    indices_z, weights_z, dweights_z = compute_kernel_weights_derivative_1d(z_scaled, nf3, kernel)
 
     # 3D indices
     indices_3d = (
@@ -1315,32 +1269,10 @@ def _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel_params):
     y_scaled = fold_rescale(y, nf2)
     z_scaled = fold_rescale(z, nf3)
 
-    ns2 = nspread / 2.0
-    offsets = jnp.arange(nspread)
-    scale_x = nf1 / (2.0 * jnp.pi)
-    scale_y = nf2 / (2.0 * jnp.pi)
-    scale_z = nf3 / (2.0 * jnp.pi)
-
-    # X dimension (fused kernel + derivative computation)
-    i0_x = jnp.ceil(x_scaled - ns2).astype(jnp.int32)
-    indices_x = (i0_x[:, None] + offsets[None, :]) % nf1
-    z_x = (i0_x[:, None] + offsets[None, :]).astype(x.dtype) - x_scaled[:, None]
-    weights_x, dweights_x_raw = kernel.value_and_grad(z_x)
-    dweights_x = -dweights_x_raw * scale_x
-
-    # Y dimension (fused kernel + derivative computation)
-    i0_y = jnp.ceil(y_scaled - ns2).astype(jnp.int32)
-    indices_y = (i0_y[:, None] + offsets[None, :]) % nf2
-    z_y = (i0_y[:, None] + offsets[None, :]).astype(y.dtype) - y_scaled[:, None]
-    weights_y, dweights_y_raw = kernel.value_and_grad(z_y)
-    dweights_y = -dweights_y_raw * scale_y
-
-    # Z dimension (fused kernel + derivative computation)
-    i0_z = jnp.ceil(z_scaled - ns2).astype(jnp.int32)
-    indices_z = (i0_z[:, None] + offsets[None, :]) % nf3
-    z_z = (i0_z[:, None] + offsets[None, :]).astype(z.dtype) - z_scaled[:, None]
-    weights_z, dweights_z_raw = kernel.value_and_grad(z_z)
-    dweights_z = -dweights_z_raw * scale_z
+    # Per-dimension kernel weights and derivatives (shared 1D helper)
+    indices_x, weights_x, dweights_x = compute_kernel_weights_derivative_1d(x_scaled, nf1, kernel)
+    indices_y, weights_y, dweights_y = compute_kernel_weights_derivative_1d(y_scaled, nf2, kernel)
+    indices_z, weights_z, dweights_z = compute_kernel_weights_derivative_1d(z_scaled, nf3, kernel)
 
     # 3D indices
     indices_3d = (

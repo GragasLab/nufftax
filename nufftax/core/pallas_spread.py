@@ -12,6 +12,7 @@ interp kernels are provided.
 """
 
 import functools
+import os
 
 import jax
 import jax.numpy as jnp
@@ -22,6 +23,13 @@ from .kernel import Kernel
 
 
 BLOCK_SIZE = 256
+
+# Testing/debugging only: run the Pallas kernels in interpret mode (works on
+# CPU, no Triton). This validates indexing, kernel weights and dtype handling,
+# but interpret mode does NOT emulate atomic accumulation for duplicate indices
+# within a call — points whose kernel footprints overlap give wrong sums. Tests
+# using this flag must use collision-free points. Never enable in production.
+INTERPRET = os.environ.get("NUFFTAX_PALLAS_INTERPRET", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _kernel_eval_params(kernel_params):
@@ -132,6 +140,7 @@ def spread_1d_pallas(x, c, nf, kernel_params):
         ],
         input_output_aliases={3: 0, 4: 1},
         compiler_params=pltriton.CompilerParams(num_warps=4, num_stages=2),
+        interpret=INTERPRET,
     )(x_pad, c_real_pad, c_imag_pad, fw_real_init, fw_imag_init)
     return (fw_real + 1j * fw_imag).astype(c.dtype)
 
@@ -226,6 +235,7 @@ def spread_2d_pallas(x, y, c, nf1, nf2, kernel_params):
         ],
         input_output_aliases={4: 0, 5: 1},
         compiler_params=pltriton.CompilerParams(num_warps=4, num_stages=2),
+        interpret=INTERPRET,
     )(x_pad, y_pad, c_real_pad, c_imag_pad, fw_real_init, fw_imag_init)
     return (fw_real + 1j * fw_imag).astype(c.dtype).reshape(nf2, nf1)
 
@@ -338,5 +348,6 @@ def spread_3d_pallas(x, y, z, c, nf1, nf2, nf3, kernel_params):
         ],
         input_output_aliases={5: 0, 6: 1},
         compiler_params=pltriton.CompilerParams(num_warps=4, num_stages=2),
+        interpret=INTERPRET,
     )(x_pad, y_pad, z_pad, c_real_pad, c_imag_pad, fw_real_init, fw_imag_init)
     return (fw_real + 1j * fw_imag).astype(c.dtype).reshape(nf3, nf2, nf1)
