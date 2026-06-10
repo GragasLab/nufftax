@@ -40,11 +40,12 @@ except ImportError:
     pass
 
 
-# Whether to use the fused Pallas GPU spreading kernels. Gated by the
-# NUFFTAX_PALLAS_BACKEND environment variable (default on). Set it to a falsey
-# value (0/false/no/off) to force the pure-JAX path everywhere — slower for
-# large problems, but more robust across JAX versions and GPU backends. Pallas
-# additionally requires a GPU (Triton); on CPU the pure-JAX path is always used.
+# Whether to use the fused Pallas GPU spreading kernels. Opt-in via the
+# NUFFTAX_PALLAS_BACKEND environment variable (default off): pure JAX is the
+# default because it is robust across JAX versions and GPU backends. Set a
+# truthy value (1/true/yes/on) to enable the Pallas kernels — much faster
+# spreading for large problems on GPU. Pallas additionally requires a GPU
+# (Triton); on CPU the pure-JAX path is always used.
 def _bool_env(name: str, default: bool) -> bool:
     val = os.environ.get(name)
     if val is None:
@@ -52,7 +53,7 @@ def _bool_env(name: str, default: bool) -> bool:
     return val.strip().lower() not in ("0", "false", "no", "off", "")
 
 
-_USE_PALLAS_SPREAD = _bool_env("NUFFTAX_PALLAS_BACKEND", True)
+_USE_PALLAS_SPREAD = _bool_env("NUFFTAX_PALLAS_BACKEND", False)
 
 
 def _use_pallas(x: jax.Array, c: jax.Array) -> bool:

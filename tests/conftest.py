@@ -4,6 +4,7 @@ Pytest fixtures and utilities for JAX-FINUFFT tests.
 Provides common test fixtures, numerical utilities, and shared configuration.
 """
 
+import os
 from collections.abc import Callable
 
 import jax
@@ -15,6 +16,11 @@ import pytest
 # ============================================================================
 # Configuration
 # ============================================================================
+
+# The Pallas backend is opt-in (off by default). The test suite enables it so
+# the Pallas paths are exercised wherever they can run (GPU, or CPU with
+# NUFFTAX_PALLAS_INTERPRET=1). Must be set before nufftax is imported.
+os.environ.setdefault("NUFFTAX_PALLAS_BACKEND", "1")
 
 # The suite runs with float64 enabled: several tests need complex128 (Type 3
 # accuracy vs FINUFFT, dtype tests, high-precision adjoints). Enabling it here

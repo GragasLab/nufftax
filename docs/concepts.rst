@@ -296,7 +296,7 @@ the point coordinates (which use the kernel derivative).
 
 .. note::
 
-   **GPU.** When the Pallas backend is enabled (the default; see
+   **GPU.** When the Pallas backend is enabled (opt-in; see
    ``NUFFTAX_PALLAS_BACKEND`` below), custom kernels run through the same fused
    Pallas spreading kernels as the ES kernel — ``phi`` is threaded into the
    Triton kernel as a static closure — so there is no performance penalty beyond
@@ -306,10 +306,11 @@ the point coordinates (which use the kernel derivative).
 
 .. note::
 
-   **Selecting the backend.** GPU spreading uses the fused Pallas kernels by
-   default. Set ``NUFFTAX_PALLAS_BACKEND=0`` to force the pure-JAX path
-   everywhere — slower for large problems, but more robust across JAX versions
-   and GPU backends. On CPU the pure-JAX path is always used.
+   **Selecting the backend.** The fused Pallas GPU spreading kernels are
+   opt-in: set ``NUFFTAX_PALLAS_BACKEND=1`` to enable them (much faster
+   spreading for large problems on GPU). By default the pure-JAX path is used
+   everywhere — more robust across JAX versions and GPU backends. On CPU the
+   pure-JAX path is always used.
 
 .. note::
 

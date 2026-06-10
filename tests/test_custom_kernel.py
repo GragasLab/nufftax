@@ -295,7 +295,8 @@ def test_vmap_over_kernel_param_pure_jax(rng):
 
 
 # ============================================================================
-# NUFFTAX_PALLAS_BACKEND env var gates the Pallas spreading backend (default on)
+# NUFFTAX_PALLAS_BACKEND env var gates the Pallas spreading backend
+# (opt-in: defaults to off, pure JAX)
 # ============================================================================
 
 
@@ -303,13 +304,13 @@ def test_pallas_backend_env_flag(monkeypatch):
     from nufftax.core.spread import _bool_env
 
     monkeypatch.delenv("NUFFTAX_PALLAS_BACKEND", raising=False)
-    assert _bool_env("NUFFTAX_PALLAS_BACKEND", True) is True  # default on
+    assert _bool_env("NUFFTAX_PALLAS_BACKEND", False) is False  # opt-in: default off
     for off in ("0", "false", "False", "no", "off"):
         monkeypatch.setenv("NUFFTAX_PALLAS_BACKEND", off)
-        assert _bool_env("NUFFTAX_PALLAS_BACKEND", True) is False
+        assert _bool_env("NUFFTAX_PALLAS_BACKEND", False) is False
     for on in ("1", "true", "yes", "on"):
         monkeypatch.setenv("NUFFTAX_PALLAS_BACKEND", on)
-        assert _bool_env("NUFFTAX_PALLAS_BACKEND", True) is True
+        assert _bool_env("NUFFTAX_PALLAS_BACKEND", False) is True
 
 
 # ============================================================================
