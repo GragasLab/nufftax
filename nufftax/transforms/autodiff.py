@@ -18,17 +18,41 @@ from jax import Array
 from . import primitives as P
 
 
+def _split_upsampfac(upsampfac: "float | tuple[float, float]") -> tuple[float, float]:
+    """Normalize ``upsampfac`` to ``(forward, backward)``.
+
+    A scalar applies to both the forward transform and its adjoint (used in
+    reverse-mode AD); a ``(forward, backward)`` pair sets them independently —
+    the Type 1 / Type 2 oversampling need not match.
+    """
+    if isinstance(upsampfac, (tuple, list)):
+        return float(upsampfac[0]), float(upsampfac[1])
+    return float(upsampfac), float(upsampfac)
+
+
 # ============================================================================
 # Type 1 (nonuniform -> uniform)
 # ============================================================================
 
 
-def nufft1d1(x: Array, c: Array, n_modes: int, eps: float = 1e-6, isign: int = 1) -> Array:
-    return P.nufft1d1_p.bind(x, c, n_modes=n_modes, eps=eps, isign=isign)
+def nufft1d1(
+    x: Array, c: Array, n_modes: int, eps: float = 1e-6, isign: int = 1, upsampfac: "float | tuple[float, float]" = 2.0
+) -> Array:
+    uf, uf_t = _split_upsampfac(upsampfac)
+    return P.nufft1d1_p.bind(x, c, n_modes=n_modes, eps=eps, isign=isign, upsampfac=uf, upsampfac_T=uf_t)
 
 
-def nufft2d1(x: Array, y: Array, c: Array, n_modes: tuple[int, int], eps: float = 1e-6, isign: int = 1) -> Array:
-    return P.nufft2d1_p.bind(x, y, c, n_modes=tuple(n_modes), eps=eps, isign=isign)
+def nufft2d1(
+    x: Array,
+    y: Array,
+    c: Array,
+    n_modes: tuple[int, int],
+    eps: float = 1e-6,
+    isign: int = 1,
+    upsampfac: "float | tuple[float, float]" = 2.0,
+) -> Array:
+    uf, uf_t = _split_upsampfac(upsampfac)
+    return P.nufft2d1_p.bind(x, y, c, n_modes=tuple(n_modes), eps=eps, isign=isign, upsampfac=uf, upsampfac_T=uf_t)
 
 
 def nufft3d1(
@@ -39,8 +63,10 @@ def nufft3d1(
     n_modes: tuple[int, int, int],
     eps: float = 1e-6,
     isign: int = 1,
+    upsampfac: "float | tuple[float, float]" = 2.0,
 ) -> Array:
-    return P.nufft3d1_p.bind(x, y, z, c, n_modes=tuple(n_modes), eps=eps, isign=isign)
+    uf, uf_t = _split_upsampfac(upsampfac)
+    return P.nufft3d1_p.bind(x, y, z, c, n_modes=tuple(n_modes), eps=eps, isign=isign, upsampfac=uf, upsampfac_T=uf_t)
 
 
 # ============================================================================
@@ -48,16 +74,31 @@ def nufft3d1(
 # ============================================================================
 
 
-def nufft1d2(x: Array, f: Array, eps: float = 1e-6, isign: int = -1) -> Array:
-    return P.nufft1d2_p.bind(x, f, eps=eps, isign=isign)
+def nufft1d2(
+    x: Array, f: Array, eps: float = 1e-6, isign: int = -1, upsampfac: "float | tuple[float, float]" = 2.0
+) -> Array:
+    uf, uf_t = _split_upsampfac(upsampfac)
+    return P.nufft1d2_p.bind(x, f, eps=eps, isign=isign, upsampfac=uf, upsampfac_T=uf_t)
 
 
-def nufft2d2(x: Array, y: Array, f: Array, eps: float = 1e-6, isign: int = -1) -> Array:
-    return P.nufft2d2_p.bind(x, y, f, eps=eps, isign=isign)
+def nufft2d2(
+    x: Array, y: Array, f: Array, eps: float = 1e-6, isign: int = -1, upsampfac: "float | tuple[float, float]" = 2.0
+) -> Array:
+    uf, uf_t = _split_upsampfac(upsampfac)
+    return P.nufft2d2_p.bind(x, y, f, eps=eps, isign=isign, upsampfac=uf, upsampfac_T=uf_t)
 
 
-def nufft3d2(x: Array, y: Array, z: Array, f: Array, eps: float = 1e-6, isign: int = -1) -> Array:
-    return P.nufft3d2_p.bind(x, y, z, f, eps=eps, isign=isign)
+def nufft3d2(
+    x: Array,
+    y: Array,
+    z: Array,
+    f: Array,
+    eps: float = 1e-6,
+    isign: int = -1,
+    upsampfac: "float | tuple[float, float]" = 2.0,
+) -> Array:
+    uf, uf_t = _split_upsampfac(upsampfac)
+    return P.nufft3d2_p.bind(x, y, z, f, eps=eps, isign=isign, upsampfac=uf, upsampfac_T=uf_t)
 
 
 # ============================================================================

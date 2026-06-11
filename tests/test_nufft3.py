@@ -8,11 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-
-# Enable float64 for 3D Type 3 tests which need higher precision
-jax.config.update("jax_enable_x64", True)
-
-from nufftax import (  # noqa: E402
+from nufftax import (
     compute_type3_grid_size,
     compute_type3_grid_sizes_2d,
     compute_type3_grid_sizes_3d,
@@ -20,6 +16,11 @@ from nufftax import (  # noqa: E402
     nufft2d3,
     nufft3d3,
 )
+
+
+# float64 is enabled suite-wide in conftest.py; these tests rely on it for the
+# high-precision comparisons against FINUFFT.
+assert jax.config.jax_enable_x64
 
 
 def direct_nufft1d3(x, c, s, isign=1):

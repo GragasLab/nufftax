@@ -120,11 +120,10 @@ Quick Example
 GPU Acceleration
 ----------------
 
-On GPU, nufftax automatically dispatches spreading and interpolation to fused
-`Pallas <https://docs.jax.dev/en/latest/pallas/index.html>`_ (Triton) kernels
-when the problem is large enough. This avoids materializing
-O(M × nspread\ :sup:`d`) intermediate tensors and uses atomic scatter-add for
-spreading.
+On GPU, nufftax can dispatch spreading to fused
+`Pallas <https://docs.jax.dev/en/latest/pallas/index.html>`_ (Triton) kernels.
+This avoids materializing O(M × nspread\ :sup:`d`) intermediate tensors and
+uses atomic scatter-add for spreading.
 
 .. list-table::
    :widths: 30 20 30
@@ -143,8 +142,9 @@ spreading.
      - A100/H100
      - 2–3× (M ≥ 100K)
 
-The dispatch is transparent — no code changes required. On CPU or for small
-problems, the pure JAX path is used.
+The Pallas backend is opt-in: set ``NUFFTAX_PALLAS_BACKEND=1`` to enable it.
+By default nufftax uses the pure-JAX path everywhere, which is more robust
+across JAX versions and GPU backends; on CPU the pure-JAX path is always used.
 
 Installation
 ------------

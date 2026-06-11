@@ -174,6 +174,28 @@ The kernel width scales roughly as :math:`\lceil \log_{10}(1/\text{eps}) \rceil 
    # High precision
    f_precise = nufft1d1(x, c, n_modes=64, eps=1e-12)
 
+Oversampling factor (``upsampfac``)
+-----------------------------------
+
+All transforms accept ``upsampfac``, the oversampling factor of the internal
+fine grid (default ``2.0``). A smaller factor such as ``1.25`` shrinks the grid
+and is faster, at the cost of accuracy — note that nufftax uses a generic kernel
+formula, so at ``1.25`` it does not reach the same precision as the hand-tuned
+FINUFFT kernels.
+
+.. code-block:: python
+
+   f = nufft2d1(x, y, c, n_modes=(64, 64), upsampfac=1.25)  # faster, coarser
+
+For Type 1 / Type 2, ``upsampfac`` may also be a ``(forward, backward)`` pair:
+the forward transform and its adjoint (used in reverse-mode AD) need not share
+the same oversampling, which can be tuned independently for performance.
+
+.. code-block:: python
+
+   # forward at 2.0, gradient/adjoint at 1.25
+   f = nufft2d1(x, y, c, n_modes=(64, 64), upsampfac=(2.0, 1.25))
+
 Coordinate Conventions
 ----------------------
 
@@ -226,6 +248,75 @@ For gradients w.r.t. the point locations ``x``, the kernel derivative is used.
        return jnp.sum(jnp.abs(f) ** 2)
 
    grad_x = jax.grad(loss_positions)(x)
+
+Custom Spreading Kernels
+------------------------
+
+The spreading and interpolation primitives are exposed directly, so you can use
+them on their own — without the full NUFFT pipeline — and with **your own
+kernel** instead of the built-in ES kernel. A typical use case is spreading
+short-range Gaussians (or any localized bump) onto a grid.
+
+The primitives live in ``nufftax.core``:
+
+- ``spread_1d/2d/3d`` — scatter point values onto a grid:
+  :math:`\text{fw}[k] = \sum_j c_j\, \phi(k - \tilde{x}_j)`
+- ``interp_1d/2d/3d`` — the adjoint gather:
+  :math:`c_j = \sum_k \text{fw}[k]\, \phi(k - \tilde{x}_j)`
+
+where :math:`\tilde{x}_j` is the point mapped to grid units and :math:`\phi` is
+the kernel, nonzero only over ``nspread`` neighbouring grid points. By default
+they use the built-in ES kernel (the same one the ``nufftNdM`` transforms use).
+
+To use your own kernel, pass a ``Kernel`` instead — defined by its support
+width and value function. The example below is a truncated Gaussian:
+
+.. code-block:: python
+
+   import jax.numpy as jnp
+   from nufftax.core import spread_1d, interp_1d, Kernel
+
+   # phi must be pure jnp arithmetic (it is also lowered into the GPU kernel)
+   def phi(z):
+       return jnp.exp(-0.5 * (z / 1.5) ** 2)
+
+   # Optional analytic derivative (z -> (phi, dphi/dz)); used for gradients
+   # w.r.t. the point coordinates. If omitted, it is obtained by autodiff.
+   def phi_and_dphi(z):
+       p = phi(z)
+       return p, -(z / 1.5**2) * p
+
+   kernel = Kernel(nspread=10, phi=phi, phi_and_dphi=phi_and_dphi)
+
+   fw = spread_1d(x, c, 256, kernel)   # spread Gaussians onto the grid
+   c2 = interp_1d(x, fw, 256, kernel)  # adjoint gather
+
+These primitives keep full ``grad``/``vjp`` support, including gradients w.r.t.
+the point coordinates (which use the kernel derivative).
+
+.. note::
+
+   **GPU.** When the Pallas backend is enabled (opt-in; see
+   ``NUFFTAX_PALLAS_BACKEND`` below), custom kernels run through the same fused
+   Pallas spreading kernels as the ES kernel — ``phi`` is threaded into the
+   Triton kernel as a static closure — so there is no performance penalty beyond
+   the cost of ``phi`` itself. This requires ``phi`` to be pure ``jnp``
+   arithmetic (no Python control flow on traced values) and passed as a static
+   argument; a distinct kernel triggers one Pallas recompilation.
+
+.. note::
+
+   **Selecting the backend.** The fused Pallas GPU spreading kernels are
+   opt-in: set ``NUFFTAX_PALLAS_BACKEND=1`` to enable them (much faster
+   spreading for large problems on GPU). By default the pure-JAX path is used
+   everywhere — more robust across JAX versions and GPU backends. On CPU the
+   pure-JAX path is always used.
+
+.. note::
+
+   Custom kernels apply to the standalone ``spread_*`` / ``interp_*``
+   primitives. The full ``nufftNdM`` transforms still use the ES kernel, whose
+   Fourier series is needed for the deconvolution step.
 
 Type 3 and JIT Compilation
 --------------------------

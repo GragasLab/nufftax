@@ -60,6 +60,9 @@ Repository = "https://github.com/GragasLab/nufftax"
 where = ["."]
 include = ["nufftax*"]
 
+[tool.setuptools.package-data]
+nufftax = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]

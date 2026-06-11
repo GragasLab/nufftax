@@ -295,6 +295,12 @@ All transform functions share these parameters:
    * - ``isign``
      - ``int``
      - Sign of the exponent: ``+1`` or ``-1``. Default varies by transform type.
+   * - ``upsampfac``
+     - ``float`` or ``tuple``
+     - Oversampling factor of the internal fine grid (default ``2.0``); ``1.25``
+       is faster but coarser. Accepted by all Type 1/2/3 transforms. For Type 1/2,
+       a ``(forward, backward)`` pair sets the forward transform and its adjoint
+       (used in reverse-mode AD) independently.
 
 Return Values
 ~~~~~~~~~~~~~

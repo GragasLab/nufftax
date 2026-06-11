@@ -9,6 +9,7 @@ from .deconvolve import (
     deconvolve_shuffle_3d,
 )
 from .kernel import (
+    Kernel,
     KernelParams,
     compute_kernel_params,
     es_kernel,
@@ -33,6 +34,7 @@ __all__ = [
     "compute_kernel_params",
     "kernel_fourier_series",
     "KernelParams",
+    "Kernel",
     # Spreading functions
     "spread_1d",
     "spread_2d",

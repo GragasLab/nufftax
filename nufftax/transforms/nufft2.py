@@ -59,8 +59,11 @@ def nufft1d2(
     # Compute fine grid size
     nf = compute_grid_size(n_modes, upsampfac, nspread)
 
+    # Infer dtype from input (use real part dtype of f)
+    dtype = jnp.real(f).dtype
+
     # Compute kernel Fourier series coefficients
-    phihat = kernel_fourier_series(nf, nspread, kernel_params.beta, kernel_params.c)
+    phihat = kernel_fourier_series(nf, nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
 
     # Step 1: Deconvolve and pad to fine grid
     fw_hat = deconvolve_pad_1d(f, phihat, nf, modeord)
@@ -123,9 +126,12 @@ def nufft2d2(
     nf1 = compute_grid_size(n_modes1, upsampfac, nspread)
     nf2 = compute_grid_size(n_modes2, upsampfac, nspread)
 
+    # Infer dtype from input (use real part dtype of f)
+    dtype = jnp.real(f).dtype
+
     # Compute kernel Fourier series for each dimension
-    phihat1 = kernel_fourier_series(nf1, nspread, kernel_params.beta, kernel_params.c)
-    phihat2 = kernel_fourier_series(nf2, nspread, kernel_params.beta, kernel_params.c)
+    phihat1 = kernel_fourier_series(nf1, nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
+    phihat2 = kernel_fourier_series(nf2, nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
 
     # Step 1: Deconvolve and pad to fine grid
     fw_hat = deconvolve_pad_2d(f, phihat1, phihat2, nf1, nf2, modeord)
@@ -190,10 +196,13 @@ def nufft3d2(
     nf2 = compute_grid_size(n_modes2, upsampfac, nspread)
     nf3 = compute_grid_size(n_modes3, upsampfac, nspread)
 
+    # Infer dtype from input (use real part dtype of f)
+    dtype = jnp.real(f).dtype
+
     # Compute kernel Fourier series for each dimension
-    phihat1 = kernel_fourier_series(nf1, nspread, kernel_params.beta, kernel_params.c)
-    phihat2 = kernel_fourier_series(nf2, nspread, kernel_params.beta, kernel_params.c)
-    phihat3 = kernel_fourier_series(nf3, nspread, kernel_params.beta, kernel_params.c)
+    phihat1 = kernel_fourier_series(nf1, nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
+    phihat2 = kernel_fourier_series(nf2, nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
+    phihat3 = kernel_fourier_series(nf3, nspread, kernel_params.beta, kernel_params.c, dtype=dtype)
 
     # Step 1: Deconvolve and pad to fine grid
     fw_hat = deconvolve_pad_3d(f, phihat1, phihat2, phihat3, nf1, nf2, nf3, modeord)

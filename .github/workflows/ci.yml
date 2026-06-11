@@ -35,6 +35,12 @@ jobs:
       - name: Run tests
         run: uv run pytest tests/ -v --tb=short
 
+      - name: Run Pallas kernel tests (interpret mode, CPU)
+        run: uv run pytest tests/test_pallas_interpret.py -v --tb=short
+        env:
+          NUFFTAX_PALLAS_BACKEND: "1"
+          NUFFTAX_PALLAS_INTERPRET: "1"
+
   build:
     runs-on: ubuntu-latest
     needs: test
