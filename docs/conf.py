@@ -3,7 +3,7 @@
 project = "nufftax"
 copyright = "2026, Gragas, Geoffroy Oudoumanessah, Jacopo Iollo"
 author = "Gragas, Geoffroy Oudoumanessah, Jacopo Iollo"
-release = "0.3.0"
+release = "0.6.0"
 
 # -- General configuration ---------------------------------------------------
 
