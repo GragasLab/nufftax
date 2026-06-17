@@ -18,6 +18,8 @@ from numpy.testing import assert_allclose
 
 from nufftax.core import (
     interp_1d,
+    interp_2d,
+    interp_3d,
     spread_1d,
     spread_2d,
     spread_3d,
@@ -267,8 +269,105 @@ def test_grad_wrt_kernel_param_pure_jax_matches_fd(rng):
     c = jnp.asarray(rng.standard_normal(M)).astype(jnp.complex64)
     g = jnp.asarray(rng.standard_normal(nf))
 
+    @jax.jit
     def loss(sigma):
-        return jnp.sum(g * jnp.real(spread_1d_impl(x, c, nf, _gauss_kernel_from_sigma(sigma))))
+        return jnp.sum(g * jnp.real(spread_1d(x, c, nf, _gauss_kernel_from_sigma(sigma))))
+
+    sigma = jnp.float32(1.5)
+    grad = float(jax.grad(loss)(sigma))
+
+    eps = 1e-3
+    fd = (float(loss(sigma + eps)) - float(loss(sigma - eps))) / (2 * eps)
+    assert_allclose(grad, fd, rtol=2e-2, atol=2e-2)
+
+
+def test_grad_wrt_kernel_param_spread_2d_matches_fd(rng):
+    M, nf1, nf2 = 30, 32, 24
+    x = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    y = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    c = jnp.asarray(rng.standard_normal(M)).astype(jnp.complex64)
+    g = jnp.asarray(rng.standard_normal((nf2, nf1)))
+
+    @jax.jit
+    def loss(sigma):
+        return jnp.sum(g * jnp.real(spread_2d(x, y, c, nf1, nf2, _gauss_kernel_from_sigma(sigma))))
+
+    sigma = jnp.float32(1.5)
+    grad = float(jax.grad(loss)(sigma))
+
+    eps = 1e-3
+    fd = (float(loss(sigma + eps)) - float(loss(sigma - eps))) / (2 * eps)
+    assert_allclose(grad, fd, rtol=2e-2, atol=2e-2)
+
+
+def test_grad_wrt_kernel_param_spread_3d_matches_fd(rng):
+    M, nf1, nf2, nf3 = 20, 16, 12, 10
+    x = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    y = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    z = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    c = jnp.asarray(rng.standard_normal(M)).astype(jnp.complex64)
+    g = jnp.asarray(rng.standard_normal((nf3, nf2, nf1)))
+
+    @jax.jit
+    def loss(sigma):
+        return jnp.sum(g * jnp.real(spread_3d(x, y, z, c, nf1, nf2, nf3, _gauss_kernel_from_sigma(sigma))))
+
+    sigma = jnp.float32(1.5)
+    grad = float(jax.grad(loss)(sigma))
+
+    eps = 1e-3
+    fd = (float(loss(sigma + eps)) - float(loss(sigma - eps))) / (2 * eps)
+    assert_allclose(grad, fd, rtol=2e-2, atol=2e-2)
+
+
+def test_grad_wrt_kernel_param_interp_1d_matches_fd(rng):
+    M, nf = 40, 64
+    x = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    fw = jnp.asarray(rng.standard_normal(nf)).astype(jnp.complex64)
+    g = jnp.asarray(rng.standard_normal(M))
+
+    @jax.jit
+    def loss(sigma):
+        return jnp.sum(g * jnp.real(interp_1d(x, fw, nf, _gauss_kernel_from_sigma(sigma))))
+
+    sigma = jnp.float32(1.5)
+    grad = float(jax.grad(loss)(sigma))
+
+    eps = 1e-3
+    fd = (float(loss(sigma + eps)) - float(loss(sigma - eps))) / (2 * eps)
+    assert_allclose(grad, fd, rtol=2e-2, atol=2e-2)
+
+
+def test_grad_wrt_kernel_param_interp_2d_matches_fd(rng):
+    M, nf1, nf2 = 30, 32, 24
+    x = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    y = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    fw = jnp.asarray(rng.standard_normal((nf2, nf1))).astype(jnp.complex64)
+    g = jnp.asarray(rng.standard_normal(M))
+
+    @jax.jit
+    def loss(sigma):
+        return jnp.sum(g * jnp.real(interp_2d(x, y, fw, nf1, nf2, _gauss_kernel_from_sigma(sigma))))
+
+    sigma = jnp.float32(1.5)
+    grad = float(jax.grad(loss)(sigma))
+
+    eps = 1e-3
+    fd = (float(loss(sigma + eps)) - float(loss(sigma - eps))) / (2 * eps)
+    assert_allclose(grad, fd, rtol=2e-2, atol=2e-2)
+
+
+def test_grad_wrt_kernel_param_interp_3d_matches_fd(rng):
+    M, nf1, nf2, nf3 = 20, 16, 12, 10
+    x = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    y = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    z = jnp.asarray(rng.uniform(-np.pi, np.pi, M))
+    fw = jnp.asarray(rng.standard_normal((nf3, nf2, nf1))).astype(jnp.complex64)
+    g = jnp.asarray(rng.standard_normal(M))
+
+    @jax.jit
+    def loss(sigma):
+        return jnp.sum(g * jnp.real(interp_3d(x, y, z, fw, nf1, nf2, nf3, _gauss_kernel_from_sigma(sigma))))
 
     sigma = jnp.float32(1.5)
     grad = float(jax.grad(loss)(sigma))
