@@ -810,9 +810,12 @@ def _extract_phi_closures(kernel: Kernel, dtype) -> tuple:
 
 # ── 1-D spread ──────────────────────────────────────────────────────────────
 
+
 @partial(jax.custom_vjp, nondiff_argnums=(2, 3, 4, 5, 6, 7))
 def _spread_1d_vjp(x, c, nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args):
-    return _spread_1d_dispatch(x, c, nf, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args))
+    return _spread_1d_dispatch(
+        x, c, nf, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
 
 
 def _spread_1d_vjp_fwd(x, c, nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args):
@@ -827,8 +830,11 @@ def _spread_1d_vjp_bwd(nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, res, g
     dc = interp_1d_impl(x, g, kernel)
     dx = _spread_1d_grad_x(x, c, g, nf, kernel)
     _, fw_vjp = jax.vjp(
-        lambda pa, dpa: spread_1d_impl(x, c, nf, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)),
-        phi_args, dphi_args,
+        lambda pa, dpa: spread_1d_impl(
+            x, c, nf, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
     )
     d_phi_args, d_dphi_args = fw_vjp(g)
     return dx, dc, d_phi_args, d_dphi_args
@@ -906,9 +912,12 @@ def _spread_1d_grad_x(
 
 # ── 1-D interp ──────────────────────────────────────────────────────────────
 
+
 @partial(jax.custom_vjp, nondiff_argnums=(2, 3, 4, 5, 6, 7))
 def _interp_1d_vjp(x, fw, nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args):
-    return _interp_1d_dispatch(x, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args))
+    return _interp_1d_dispatch(
+        x, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
 
 
 def _interp_1d_vjp_fwd(x, fw, nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args):
@@ -924,7 +933,8 @@ def _interp_1d_vjp_bwd(nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, res, g
     dx = _interp_1d_grad_x(x, fw, g, nf, kernel)
     _, interp_vjp = jax.vjp(
         lambda pa, dpa: interp_1d_impl(x, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)),
-        phi_args, dphi_args,
+        phi_args,
+        dphi_args,
     )
     d_phi_args, d_dphi_args = interp_vjp(g)
     return dx, dfw, d_phi_args, d_dphi_args
@@ -1001,9 +1011,12 @@ def _interp_1d_grad_x(
 
 # ── 2-D spread ──────────────────────────────────────────────────────────────
 
+
 @partial(jax.custom_vjp, nondiff_argnums=(5, 6, 7, 8, 9, 10, 11))
 def _spread_2d_vjp(x, y, c, phi_args, dphi_args, nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
-    return _spread_2d_dispatch(x, y, c, nf1, nf2, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args))
+    return _spread_2d_dispatch(
+        x, y, c, nf1, nf2, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
 
 
 def _spread_2d_vjp_fwd(x, y, c, phi_args, dphi_args, nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
@@ -1018,8 +1031,11 @@ def _spread_2d_vjp_bwd(nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, 
     dc = interp_2d_impl(x, y, g, kernel)
     dx, dy = _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel)
     _, fw_vjp = jax.vjp(
-        lambda pa, dpa: spread_2d_impl(x, y, c, nf1, nf2, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)),
-        phi_args, dphi_args,
+        lambda pa, dpa: spread_2d_impl(
+            x, y, c, nf1, nf2, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
     )
     d_phi_args, d_dphi_args = fw_vjp(g)
     return dx, dy, dc, d_phi_args, d_dphi_args
@@ -1094,9 +1110,12 @@ def _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel_params):
 
 # ── 2-D interp ──────────────────────────────────────────────────────────────
 
+
 @partial(jax.custom_vjp, nondiff_argnums=(5, 6, 7, 8, 9, 10, 11))
 def _interp_2d_vjp(x, y, fw, phi_args, dphi_args, nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
-    return _interp_2d_dispatch(x, y, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args))
+    return _interp_2d_dispatch(
+        x, y, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
 
 
 def _interp_2d_vjp_fwd(x, y, fw, phi_args, dphi_args, nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
@@ -1111,8 +1130,11 @@ def _interp_2d_vjp_bwd(nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, 
     dfw = spread_2d_impl(x, y, g, nf1, nf2, kernel)
     dx, dy = _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel)
     _, interp_vjp = jax.vjp(
-        lambda pa, dpa: interp_2d_impl(x, y, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)),
-        phi_args, dphi_args,
+        lambda pa, dpa: interp_2d_impl(
+            x, y, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
     )
     d_phi_args, d_dphi_args = interp_vjp(g)
     return dx, dy, dfw, d_phi_args, d_dphi_args
@@ -1144,7 +1166,9 @@ def interp_2d(
     """
     kernel = _as_kernel(kernel_params)
     phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
-    return _interp_2d_vjp(x, y, fw, phi_args, dphi_args, nf1, nf2, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig)
+    return _interp_2d_vjp(
+        x, y, fw, phi_args, dphi_args, nf1, nf2, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig
+    )
 
 
 def _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel_params):
@@ -1190,9 +1214,12 @@ def _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel_params):
 
 # ── 3-D spread ──────────────────────────────────────────────────────────────
 
+
 @partial(jax.custom_vjp, nondiff_argnums=(6, 7, 8, 9, 10, 11, 12, 13))
 def _spread_3d_vjp(x, y, z, c, phi_args, dphi_args, nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
-    return _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args))
+    return _spread_3d_dispatch(
+        x, y, z, c, nf1, nf2, nf3, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
 
 
 def _spread_3d_vjp_fwd(x, y, z, c, phi_args, dphi_args, nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
@@ -1207,8 +1234,11 @@ def _spread_3d_vjp_bwd(nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_o
     dc = interp_3d_impl(x, y, z, g, kernel)
     dx, dy, dz = _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel)
     _, fw_vjp = jax.vjp(
-        lambda pa, dpa: spread_3d_impl(x, y, z, c, nf1, nf2, nf3, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)),
-        phi_args, dphi_args,
+        lambda pa, dpa: spread_3d_impl(
+            x, y, z, c, nf1, nf2, nf3, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
     )
     d_phi_args, d_dphi_args = fw_vjp(g)
     return dx, dy, dz, dc, d_phi_args, d_dphi_args
@@ -1241,7 +1271,9 @@ def spread_3d(
     """
     kernel = _as_kernel(kernel_params)
     phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
-    return _spread_3d_vjp(x, y, z, c, phi_args, dphi_args, nf1, nf2, nf3, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig)
+    return _spread_3d_vjp(
+        x, y, z, c, phi_args, dphi_args, nf1, nf2, nf3, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig
+    )
 
 
 def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
@@ -1293,9 +1325,12 @@ def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
 
 # ── 3-D interp ──────────────────────────────────────────────────────────────
 
+
 @partial(jax.custom_vjp, nondiff_argnums=(6, 7, 8, 9, 10, 11, 12, 13))
 def _interp_3d_vjp(x, y, z, fw, phi_args, dphi_args, nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
-    return _interp_3d_dispatch(x, y, z, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args))
+    return _interp_3d_dispatch(
+        x, y, z, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
 
 
 def _interp_3d_vjp_fwd(x, y, z, fw, phi_args, dphi_args, nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
@@ -1310,8 +1345,11 @@ def _interp_3d_vjp_bwd(nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_o
     dfw = spread_3d_impl(x, y, z, g, nf1, nf2, nf3, kernel)
     dx, dy, dz = _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel)
     _, interp_vjp = jax.vjp(
-        lambda pa, dpa: interp_3d_impl(x, y, z, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)),
-        phi_args, dphi_args,
+        lambda pa, dpa: interp_3d_impl(
+            x, y, z, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
     )
     d_phi_args, d_dphi_args = interp_vjp(g)
     return dx, dy, dz, dfw, d_phi_args, d_dphi_args
@@ -1344,7 +1382,9 @@ def interp_3d(
     """
     kernel = _as_kernel(kernel_params)
     phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
-    return _interp_3d_vjp(x, y, z, fw, phi_args, dphi_args, nf1, nf2, nf3, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig)
+    return _interp_3d_vjp(
+        x, y, z, fw, phi_args, dphi_args, nf1, nf2, nf3, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig
+    )
 
 
 def _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel_params):
