@@ -36,12 +36,12 @@ def _make_batcher(prim, impl_fn, source_idx):
     """
 
     def batcher(args, dims, **kwargs):
-        batched = [i for i, d in enumerate(dims) if d is not batching.not_mapped]
+        batched = [i for i, d in enumerate(dims) if d is not None]
         # Fast path: only the source batched at axis 0
         if batched == [source_idx] and dims[source_idx] == 0:
             return prim.bind(*args, **kwargs), 0
         # Generic fallback: vmap-trace through the impl
-        in_axes = tuple(d if d is not batching.not_mapped else None for d in dims)
+        in_axes = tuple(dims)
         out = jax.vmap(lambda *a: impl_fn(*a, **kwargs), in_axes=in_axes)(*args)
         return out, 0
 
