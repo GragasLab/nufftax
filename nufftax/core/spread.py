@@ -238,7 +238,7 @@ def compute_kernel_weights_1d(
 def compute_kernel_weights_derivative_1d(
     x_scaled: jax.Array,
     nf: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """
     Compute kernel weights, their derivatives, and grid indices.
@@ -286,7 +286,7 @@ def spread_1d_impl(
     x: jax.Array,
     c: jax.Array,
     nf: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     1D spreading implementation: scatter nonuniform values to grid.
@@ -342,7 +342,7 @@ def spread_1d_impl(
 def interp_1d_impl(
     x: jax.Array,
     fw: jax.Array,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     1D interpolation implementation: gather grid values at nonuniform points.
@@ -391,7 +391,7 @@ def compute_kernel_weights_2d(
     y_scaled: jax.Array,
     nf1: int,
     nf2: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
     """
     Compute kernel weights and grid indices for 2D spreading/interpolation.
@@ -438,7 +438,7 @@ def spread_2d_impl(
     c: jax.Array,
     nf1: int,
     nf2: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     2D spreading implementation: scatter nonuniform values to grid.
@@ -498,7 +498,7 @@ def interp_2d_impl(
     x: jax.Array,
     y: jax.Array,
     fw: jax.Array,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     2D interpolation implementation: gather grid values at nonuniform points.
@@ -552,7 +552,7 @@ def compute_kernel_weights_3d(
     nf1: int,
     nf2: int,
     nf3: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """
     Compute kernel weights and grid indices for 3D spreading/interpolation.
@@ -601,7 +601,7 @@ def spread_3d_impl(
     nf1: int,
     nf2: int,
     nf3: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     3D spreading implementation: scatter nonuniform values to grid.
@@ -663,7 +663,7 @@ def interp_3d_impl(
     y: jax.Array,
     z: jax.Array,
     fw: jax.Array,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     3D interpolation implementation: gather grid values at nonuniform points.
@@ -759,11 +759,90 @@ def _interp_3d_dispatch(x, y, z, fw, kernel_params):
 
 
 # ============================================================================
+# Helpers: closure extraction and kernel reconstruction for custom VJP
+# ============================================================================
+#
+# kernel_params is intentionally NOT in nondiff_argnums.  Placing it there
+# causes a tracer-leak when phi closes over a JAX-traced value (e.g. a
+# learnable kernel parameter): the bwd function is invoked outside the scope
+# of the original forward trace, so any stale tracer captured by phi is
+# invalid.
+#
+# Instead, jax.closure_convert extracts the closed-over JAX arrays
+# (phi_args / dphi_args) and these become ordinary differentiable residuals.
+# The static parts (phi_fn, dphi_fn, nspread, nf, …) go in nondiff_argnums.
+
+
+def _rebuild_kernel(nspread: int, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args) -> Kernel:
+    """Reconstruct a Kernel from closure-converted parts with live phi_args.
+
+    When phi_args is empty (eager / non-traced call), phi_fn from closure_convert
+    is shape-locked to the example shape used during conversion and will fail for
+    other shapes.  Fall back to phi_orig which works for any shape.
+    """
+    phi = (lambda z: phi_fn(z, *phi_args)) if phi_args else phi_orig
+    if dphi_fn is not None:
+        phi_and_dphi = (lambda z: dphi_fn(z, *dphi_args)) if dphi_args else dphi_orig
+    else:
+        phi_and_dphi = None
+    return Kernel(nspread=nspread, phi=phi, phi_and_dphi=phi_and_dphi)
+
+
+def _extract_phi_closures(kernel: Kernel, dtype) -> tuple:
+    """Extract closed-over JAX arrays from kernel functions via jax.closure_convert.
+
+    Returns (phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args).
+    phi_orig / dphi_orig are the originals (used as shape-agnostic fallback when
+    phi_args is empty, i.e. no JAX-array closures are present).
+    """
+    z = jnp.zeros((1,), dtype=dtype)
+    phi_fn, phi_args = jax.closure_convert(kernel.phi, z)
+    if kernel.phi_and_dphi is not None:
+        dphi_fn, dphi_args = jax.closure_convert(kernel.phi_and_dphi, z)
+    else:
+        dphi_fn, dphi_args = None, ()
+    return phi_fn, dphi_fn, kernel.phi, kernel.phi_and_dphi, phi_args, dphi_args
+
+
+# ============================================================================
 # Public API with Custom VJP
 # ============================================================================
 
+# ── 1-D spread ──────────────────────────────────────────────────────────────
 
-@partial(jax.custom_vjp, nondiff_argnums=(2, 3))
+
+@partial(jax.custom_vjp, nondiff_argnums=(2, 3, 4, 5, 6, 7))
+def _spread_1d_vjp(x, c, nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args):
+    return _spread_1d_dispatch(
+        x, c, nf, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
+
+
+def _spread_1d_vjp_fwd(x, c, nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args):
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    result = _spread_1d_dispatch(x, c, nf, kernel)
+    return result, (x, c, phi_args, dphi_args)
+
+
+def _spread_1d_vjp_bwd(nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, res, g):
+    x, c, phi_args, dphi_args = res
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    dc = interp_1d_impl(x, g, kernel)
+    dx = _spread_1d_grad_x(x, c, g, nf, kernel)
+    _, fw_vjp = jax.vjp(
+        lambda pa, dpa: spread_1d_impl(
+            x, c, nf, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
+    )
+    d_phi_args, d_dphi_args = fw_vjp(g)
+    return dx, dc, d_phi_args, d_dphi_args
+
+
+_spread_1d_vjp.defvjp(_spread_1d_vjp_fwd, _spread_1d_vjp_bwd)
+
+
 def spread_1d(
     x: jax.Array,
     c: jax.Array,
@@ -776,45 +855,18 @@ def spread_1d(
     Type 1 NUFFT spreading operation:
         fw[k] = sum_j c[j] * phi((k - x[j] * nf / (2*pi)) / w)
 
-    where phi is the ES kernel with width w = nspread.
-
     Args:
         x: Nonuniform point coordinates in [-pi, pi), shape (M,)
         c: Complex strengths at nonuniform points, shape (M,) or (n_trans, M)
         nf: Fine grid size
-        kernel_params: Kernel parameters (nspread, beta, c, upsampfac)
+        kernel_params: Kernel parameters or custom Kernel
 
     Returns:
         fw: Fine grid values, shape (nf,) or (n_trans, nf)
     """
-    return _spread_1d_dispatch(x, c, nf, kernel_params)
-
-
-def spread_1d_fwd(x, c, nf, kernel_params):
-    """Forward pass for spread_1d VJP."""
-    result = _spread_1d_dispatch(x, c, nf, kernel_params)
-    return result, (x, c)
-
-
-def spread_1d_bwd(nf, kernel_params, res, g):
-    """Backward pass for spread_1d VJP.
-
-    The adjoint of spreading w.r.t. c is interpolation.
-    The adjoint w.r.t. x requires kernel derivative.
-    """
-    x, c = res
-
-    # Gradient w.r.t. c: adjoint of spreading is interpolation
-    dc = interp_1d_impl(x, g, kernel_params)
-
-    # Gradient w.r.t. x: requires kernel derivative
-    # d/dx[spread(x,c)] involves dphi/dx
-    dx = _spread_1d_grad_x(x, c, g, nf, kernel_params)
-
-    return (dx, dc)
-
-
-spread_1d.defvjp(spread_1d_fwd, spread_1d_bwd)
+    kernel = _as_kernel(kernel_params)
+    phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
+    return _spread_1d_vjp(x, c, nf, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
 
 
 def _spread_1d_grad_x(
@@ -822,7 +874,7 @@ def _spread_1d_grad_x(
     c: jax.Array,
     g: jax.Array,
     nf: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     Compute gradient of spread_1d with respect to x.
@@ -858,7 +910,39 @@ def _spread_1d_grad_x(
     return dx
 
 
-@partial(jax.custom_vjp, nondiff_argnums=(2, 3))
+# ── 1-D interp ──────────────────────────────────────────────────────────────
+
+
+@partial(jax.custom_vjp, nondiff_argnums=(2, 3, 4, 5, 6, 7))
+def _interp_1d_vjp(x, fw, nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args):
+    return _interp_1d_dispatch(
+        x, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
+
+
+def _interp_1d_vjp_fwd(x, fw, nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args):
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    result = _interp_1d_dispatch(x, fw, kernel)
+    return result, (x, fw, phi_args, dphi_args)
+
+
+def _interp_1d_vjp_bwd(nf, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, res, g):
+    x, fw, phi_args, dphi_args = res
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    dfw = spread_1d_impl(x, g, nf, kernel)
+    dx = _interp_1d_grad_x(x, fw, g, nf, kernel)
+    _, interp_vjp = jax.vjp(
+        lambda pa, dpa: interp_1d_impl(x, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)),
+        phi_args,
+        dphi_args,
+    )
+    d_phi_args, d_dphi_args = interp_vjp(g)
+    return dx, dfw, d_phi_args, d_dphi_args
+
+
+_interp_1d_vjp.defvjp(_interp_1d_vjp_fwd, _interp_1d_vjp_bwd)
+
+
 def interp_1d(
     x: jax.Array,
     fw: jax.Array,
@@ -880,32 +964,9 @@ def interp_1d(
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    return _interp_1d_dispatch(x, fw, kernel_params)
-
-
-def interp_1d_fwd(x, fw, nf, kernel_params):
-    """Forward pass for interp_1d VJP."""
-    result = _interp_1d_dispatch(x, fw, kernel_params)
-    return result, (x, fw)
-
-
-def interp_1d_bwd(nf, kernel_params, res, g):
-    """Backward pass for interp_1d VJP.
-
-    The adjoint of interpolation w.r.t. fw is spreading.
-    """
-    x, fw = res
-
-    # Gradient w.r.t. fw: adjoint of interpolation is spreading
-    dfw = spread_1d_impl(x, g, nf, kernel_params)
-
-    # Gradient w.r.t. x: similar to spread gradient
-    dx = _interp_1d_grad_x(x, fw, g, nf, kernel_params)
-
-    return (dx, dfw)
-
-
-interp_1d.defvjp(interp_1d_fwd, interp_1d_bwd)
+    kernel = _as_kernel(kernel_params)
+    phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
+    return _interp_1d_vjp(x, fw, nf, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
 
 
 def _interp_1d_grad_x(
@@ -913,7 +974,7 @@ def _interp_1d_grad_x(
     fw: jax.Array,
     g: jax.Array,
     nf: int,
-    kernel_params: KernelParams,
+    kernel_params: "Kernel | KernelParams",
 ) -> jax.Array:
     """
     Compute gradient of interp_1d with respect to x.
@@ -948,8 +1009,41 @@ def _interp_1d_grad_x(
 # 2D Public API with Custom VJP
 # ============================================================================
 
+# ── 2-D spread ──────────────────────────────────────────────────────────────
 
-@partial(jax.custom_vjp, nondiff_argnums=(3, 4, 5))
+
+@partial(jax.custom_vjp, nondiff_argnums=(5, 6, 7, 8, 9, 10, 11))
+def _spread_2d_vjp(x, y, c, phi_args, dphi_args, nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
+    return _spread_2d_dispatch(
+        x, y, c, nf1, nf2, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
+
+
+def _spread_2d_vjp_fwd(x, y, c, phi_args, dphi_args, nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    result = _spread_2d_dispatch(x, y, c, nf1, nf2, kernel)
+    return result, (x, y, c, phi_args, dphi_args)
+
+
+def _spread_2d_vjp_bwd(nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, res, g):
+    x, y, c, phi_args, dphi_args = res
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    dc = interp_2d_impl(x, y, g, kernel)
+    dx, dy = _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel)
+    _, fw_vjp = jax.vjp(
+        lambda pa, dpa: spread_2d_impl(
+            x, y, c, nf1, nf2, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
+    )
+    d_phi_args, d_dphi_args = fw_vjp(g)
+    return dx, dy, dc, d_phi_args, d_dphi_args
+
+
+_spread_2d_vjp.defvjp(_spread_2d_vjp_fwd, _spread_2d_vjp_bwd)
+
+
 def spread_2d(
     x: jax.Array,
     y: jax.Array,
@@ -969,29 +1063,11 @@ def spread_2d(
         kernel_params: Kernel parameters
 
     Returns:
-        fw: Fine grid values, shape (nf1, nf2) or (n_trans, nf1, nf2)
+        fw: Fine grid values, shape (nf2, nf1) or (n_trans, nf2, nf1)
     """
-    return _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params)
-
-
-def spread_2d_fwd(x, y, c, nf1, nf2, kernel_params):
-    result = _spread_2d_dispatch(x, y, c, nf1, nf2, kernel_params)
-    return result, (x, y, c)
-
-
-def spread_2d_bwd(nf1, nf2, kernel_params, res, g):
-    x, y, c = res
-
-    # Gradient w.r.t. c
-    dc = interp_2d_impl(x, y, g, kernel_params)
-
-    # Gradient w.r.t. x and y
-    dx, dy = _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel_params)
-
-    return (dx, dy, dc)
-
-
-spread_2d.defvjp(spread_2d_fwd, spread_2d_bwd)
+    kernel = _as_kernel(kernel_params)
+    phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
+    return _spread_2d_vjp(x, y, c, phi_args, dphi_args, nf1, nf2, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig)
 
 
 def _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel_params):
@@ -1032,7 +1108,41 @@ def _spread_2d_grad_xy(x, y, c, g, nf1, nf2, kernel_params):
     return dx, dy
 
 
-@partial(jax.custom_vjp, nondiff_argnums=(3, 4, 5))
+# ── 2-D interp ──────────────────────────────────────────────────────────────
+
+
+@partial(jax.custom_vjp, nondiff_argnums=(5, 6, 7, 8, 9, 10, 11))
+def _interp_2d_vjp(x, y, fw, phi_args, dphi_args, nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
+    return _interp_2d_dispatch(
+        x, y, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
+
+
+def _interp_2d_vjp_fwd(x, y, fw, phi_args, dphi_args, nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    result = _interp_2d_dispatch(x, y, fw, kernel)
+    return result, (x, y, fw, phi_args, dphi_args)
+
+
+def _interp_2d_vjp_bwd(nf1, nf2, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, res, g):
+    x, y, fw, phi_args, dphi_args = res
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    dfw = spread_2d_impl(x, y, g, nf1, nf2, kernel)
+    dx, dy = _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel)
+    _, interp_vjp = jax.vjp(
+        lambda pa, dpa: interp_2d_impl(
+            x, y, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
+    )
+    d_phi_args, d_dphi_args = interp_vjp(g)
+    return dx, dy, dfw, d_phi_args, d_dphi_args
+
+
+_interp_2d_vjp.defvjp(_interp_2d_vjp_fwd, _interp_2d_vjp_bwd)
+
+
 def interp_2d(
     x: jax.Array,
     y: jax.Array,
@@ -1047,34 +1157,18 @@ def interp_2d(
     Args:
         x: Nonuniform x coordinates in [-pi, pi), shape (M,)
         y: Nonuniform y coordinates in [-pi, pi), shape (M,)
-        fw: Fine grid values, shape (nf1, nf2) or (n_trans, nf1, nf2)
+        fw: Fine grid values, shape (nf2, nf1) or (n_trans, nf2, nf1)
         nf1, nf2: Fine grid sizes
         kernel_params: Kernel parameters
 
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    return _interp_2d_dispatch(x, y, fw, kernel_params)
-
-
-def interp_2d_fwd(x, y, fw, nf1, nf2, kernel_params):
-    result = _interp_2d_dispatch(x, y, fw, kernel_params)
-    return result, (x, y, fw)
-
-
-def interp_2d_bwd(nf1, nf2, kernel_params, res, g):
-    x, y, fw = res
-
-    # Gradient w.r.t. fw
-    dfw = spread_2d_impl(x, y, g, nf1, nf2, kernel_params)
-
-    # Gradient w.r.t. x and y
-    dx, dy = _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel_params)
-
-    return (dx, dy, dfw)
-
-
-interp_2d.defvjp(interp_2d_fwd, interp_2d_bwd)
+    kernel = _as_kernel(kernel_params)
+    phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
+    return _interp_2d_vjp(
+        x, y, fw, phi_args, dphi_args, nf1, nf2, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig
+    )
 
 
 def _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel_params):
@@ -1118,8 +1212,41 @@ def _interp_2d_grad_xy(x, y, fw, g, nf1, nf2, kernel_params):
 # 3D Public API with Custom VJP
 # ============================================================================
 
+# ── 3-D spread ──────────────────────────────────────────────────────────────
 
-@partial(jax.custom_vjp, nondiff_argnums=(4, 5, 6, 7))
+
+@partial(jax.custom_vjp, nondiff_argnums=(6, 7, 8, 9, 10, 11, 12, 13))
+def _spread_3d_vjp(x, y, z, c, phi_args, dphi_args, nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
+    return _spread_3d_dispatch(
+        x, y, z, c, nf1, nf2, nf3, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
+
+
+def _spread_3d_vjp_fwd(x, y, z, c, phi_args, dphi_args, nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    result = _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel)
+    return result, (x, y, z, c, phi_args, dphi_args)
+
+
+def _spread_3d_vjp_bwd(nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, res, g):
+    x, y, z, c, phi_args, dphi_args = res
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    dc = interp_3d_impl(x, y, z, g, kernel)
+    dx, dy, dz = _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel)
+    _, fw_vjp = jax.vjp(
+        lambda pa, dpa: spread_3d_impl(
+            x, y, z, c, nf1, nf2, nf3, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
+    )
+    d_phi_args, d_dphi_args = fw_vjp(g)
+    return dx, dy, dz, dc, d_phi_args, d_dphi_args
+
+
+_spread_3d_vjp.defvjp(_spread_3d_vjp_fwd, _spread_3d_vjp_bwd)
+
+
 def spread_3d(
     x: jax.Array,
     y: jax.Array,
@@ -1140,29 +1267,13 @@ def spread_3d(
         kernel_params: Kernel parameters
 
     Returns:
-        fw: Fine grid values, shape (nf1, nf2, nf3) or (n_trans, nf1, nf2, nf3)
+        fw: Fine grid values, shape (nf3, nf2, nf1) or (n_trans, nf3, nf2, nf1)
     """
-    return _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params)
-
-
-def spread_3d_fwd(x, y, z, c, nf1, nf2, nf3, kernel_params):
-    result = _spread_3d_dispatch(x, y, z, c, nf1, nf2, nf3, kernel_params)
-    return result, (x, y, z, c)
-
-
-def spread_3d_bwd(nf1, nf2, nf3, kernel_params, res, g):
-    x, y, z, c = res
-
-    # Gradient w.r.t. c
-    dc = interp_3d_impl(x, y, z, g, kernel_params)
-
-    # Gradient w.r.t. x, y, z
-    dx, dy, dz = _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params)
-
-    return (dx, dy, dz, dc)
-
-
-spread_3d.defvjp(spread_3d_fwd, spread_3d_bwd)
+    kernel = _as_kernel(kernel_params)
+    phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
+    return _spread_3d_vjp(
+        x, y, z, c, phi_args, dphi_args, nf1, nf2, nf3, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig
+    )
 
 
 def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
@@ -1212,7 +1323,41 @@ def _spread_3d_grad_xyz(x, y, z, c, g, nf1, nf2, nf3, kernel_params):
     return dx, dy, dz
 
 
-@partial(jax.custom_vjp, nondiff_argnums=(4, 5, 6, 7))
+# ── 3-D interp ──────────────────────────────────────────────────────────────
+
+
+@partial(jax.custom_vjp, nondiff_argnums=(6, 7, 8, 9, 10, 11, 12, 13))
+def _interp_3d_vjp(x, y, z, fw, phi_args, dphi_args, nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
+    return _interp_3d_dispatch(
+        x, y, z, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    )
+
+
+def _interp_3d_vjp_fwd(x, y, z, fw, phi_args, dphi_args, nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig):
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    result = _interp_3d_dispatch(x, y, z, fw, kernel)
+    return result, (x, y, z, fw, phi_args, dphi_args)
+
+
+def _interp_3d_vjp_bwd(nf1, nf2, nf3, nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, res, g):
+    x, y, z, fw, phi_args, dphi_args = res
+    kernel = _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args)
+    dfw = spread_3d_impl(x, y, z, g, nf1, nf2, nf3, kernel)
+    dx, dy, dz = _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel)
+    _, interp_vjp = jax.vjp(
+        lambda pa, dpa: interp_3d_impl(
+            x, y, z, fw, _rebuild_kernel(nspread, phi_fn, dphi_fn, phi_orig, dphi_orig, pa, dpa)
+        ),
+        phi_args,
+        dphi_args,
+    )
+    d_phi_args, d_dphi_args = interp_vjp(g)
+    return dx, dy, dz, dfw, d_phi_args, d_dphi_args
+
+
+_interp_3d_vjp.defvjp(_interp_3d_vjp_fwd, _interp_3d_vjp_bwd)
+
+
 def interp_3d(
     x: jax.Array,
     y: jax.Array,
@@ -1228,34 +1373,18 @@ def interp_3d(
 
     Args:
         x, y, z: Nonuniform coordinates in [-pi, pi), shape (M,) each
-        fw: Fine grid values, shape (nf1, nf2, nf3) or (n_trans, nf1, nf2, nf3)
+        fw: Fine grid values, shape (nf3, nf2, nf1) or (n_trans, nf3, nf2, nf1)
         nf1, nf2, nf3: Fine grid sizes
         kernel_params: Kernel parameters
 
     Returns:
         c: Interpolated values, shape (M,) or (n_trans, M)
     """
-    return _interp_3d_dispatch(x, y, z, fw, kernel_params)
-
-
-def interp_3d_fwd(x, y, z, fw, nf1, nf2, nf3, kernel_params):
-    result = _interp_3d_dispatch(x, y, z, fw, kernel_params)
-    return result, (x, y, z, fw)
-
-
-def interp_3d_bwd(nf1, nf2, nf3, kernel_params, res, g):
-    x, y, z, fw = res
-
-    # Gradient w.r.t. fw
-    dfw = spread_3d_impl(x, y, z, g, nf1, nf2, nf3, kernel_params)
-
-    # Gradient w.r.t. x, y, z
-    dx, dy, dz = _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel_params)
-
-    return (dx, dy, dz, dfw)
-
-
-interp_3d.defvjp(interp_3d_fwd, interp_3d_bwd)
+    kernel = _as_kernel(kernel_params)
+    phi_fn, dphi_fn, phi_orig, dphi_orig, phi_args, dphi_args = _extract_phi_closures(kernel, x.dtype)
+    return _interp_3d_vjp(
+        x, y, z, fw, phi_args, dphi_args, nf1, nf2, nf3, kernel.nspread, phi_fn, dphi_fn, phi_orig, dphi_orig
+    )
 
 
 def _interp_3d_grad_xyz(x, y, z, fw, g, nf1, nf2, nf3, kernel_params):
