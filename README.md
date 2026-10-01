@@ -147,3 +147,7 @@ If you use nufftax in your research, please cite:
   year = {2019}
 }
 ```
+
+## Resources
+
+This work was granted access to the HPC resources of IDRIS under the allocation 2022-AD011013867 made by GENCI.
