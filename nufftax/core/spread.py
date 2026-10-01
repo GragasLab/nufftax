@@ -97,6 +97,38 @@ def fold_rescale(x: jax.Array, n: int) -> jax.Array:
     return result * n
 
 
+def _segment_sum_complex(values: jax.Array, indices: jax.Array, num_segments: int) -> jax.Array:
+    """Accumulate ``values`` into ``num_segments`` bins, complex-safe.
+
+    Scattering a *batched complex64* array with :func:`jax.ops.segment_sum` is
+    memory-unsafe on some JAX/GPU combinations once the number of updates gets
+    large (measured: 2**18 updates at 2**18 segments on jax 0.11.2 / H100). The
+    generated kernel writes out of bounds, which surfaces either as silently
+    wrong values -- exact zeros for trailing batch elements -- or as
+    ``CUDA_ERROR_ILLEGAL_ADDRESS``. The float32, complex128 and CPU versions of
+    the same call are exact.
+
+    Splitting the strengths into their real and imaginary parts scatters real
+    (float32/float64) values instead, which is exact at every size tested, and
+    is what JAX does internally for complex128 anyway. Values that are already
+    real are scattered directly.
+
+    Args:
+        values: Values to accumulate, shape ``(..., num_updates)`` and complex or
+            real dtype.
+        indices: Bin index per update, shape ``(num_updates,)``.
+        num_segments: Number of output bins.
+
+    Returns:
+        Accumulated bins, ``(..., num_segments)``.
+    """
+    if jnp.issubdtype(values.dtype, jnp.complexfloating):
+        real = jax.ops.segment_sum(values.real, indices, num_segments=num_segments)
+        imag = jax.ops.segment_sum(values.imag, indices, num_segments=num_segments)
+        return jax.lax.complex(real, imag)
+    return jax.ops.segment_sum(values, indices, num_segments=num_segments)
+
+
 def _prepare_batched_c(c: jax.Array) -> tuple[jax.Array, int, bool]:
     """Prepare strengths array for batched processing.
 
@@ -329,7 +361,7 @@ def spread_1d_impl(
 
     # Use segment_sum for efficient accumulation (faster than add.at)
     def segment_sum_for_one_transform(wc_t):
-        return jax.ops.segment_sum(wc_t, indices_flat, num_segments=nf)
+        return _segment_sum_complex(wc_t, indices_flat, nf)
 
     fw = jax.vmap(segment_sum_for_one_transform)(weighted_c_flat)
 
@@ -483,7 +515,7 @@ def spread_2d_impl(
 
     # Use segment_sum for efficient accumulation (faster than add.at)
     def segment_sum_for_one_transform(wc_t):
-        return jax.ops.segment_sum(wc_t, indices_flat, num_segments=nf1 * nf2)
+        return _segment_sum_complex(wc_t, indices_flat, nf1 * nf2)
 
     fw_flat = jax.vmap(segment_sum_for_one_transform)(weighted_c_flat)
     fw = fw_flat.reshape(n_trans, nf2, nf1)
@@ -647,7 +679,7 @@ def spread_3d_impl(
 
     # Use segment_sum for efficient accumulation (faster than add.at)
     def segment_sum_for_one_transform(wc_t):
-        return jax.ops.segment_sum(wc_t, indices_flat, num_segments=nf1 * nf2 * nf3)
+        return _segment_sum_complex(wc_t, indices_flat, nf1 * nf2 * nf3)
 
     fw_flat = jax.vmap(segment_sum_for_one_transform)(weighted_c_flat)
     fw = fw_flat.reshape(n_trans, nf3, nf2, nf1)
